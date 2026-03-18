@@ -503,6 +503,15 @@ export default function HomePage() {
               </button>
             </div>
           </div>
+        </aside>
+
+        <div className="workspace-main">
+          <section className="panel form-panel">
+            <div className="panel-header panel-header-stacked">
+              <div className="panel-header-copy">
+                <h2>{copy.title}</h2>
+                <p>{copy.subtitle}</p>
+              </div>
 
           <div className="sidebar-list" role="list">
             {threads.map((thread) => {
