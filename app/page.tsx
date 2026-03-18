@@ -1,17 +1,29 @@
 "use client";
 
-import { Fragment, FormEvent, ReactNode, useMemo, useState } from "react";
+import { Fragment, FormEvent, ReactNode, useEffect, useMemo, useState } from "react";
 import { modeCopy, normalizePhraseInput, type TrainingMode } from "@/lib/schliemann";
+import {
+  createEmptyThread,
+  createId,
+  formatTimestamp,
+  getAssistantEntryLabel,
+  getStageFromMode,
+  getStudentEntryLabel,
+  getThreadPreview,
+  sortThreads,
+  summarizeThreadTitle,
+  workspaceStorageKey,
+  type WorkspaceEntry,
+  type WorkspaceThread
+} from "@/lib/workspace";
 
 type ApiState = {
   error: string;
-  output: string;
   loading: boolean;
 };
 
 const initialApiState: ApiState = {
   error: "",
-  output: "",
   loading: false
 };
 
@@ -33,6 +45,11 @@ function renderInlineMarkdown(text: string) {
 
 function renderAssistantOutput(output: string) {
   const normalized = output.replace(/\r\n/g, "\n").trim();
+
+  if (!normalized) {
+    return null;
+  }
+
   const lines = normalized.split("\n");
   const blocks: ReactNode[] = [];
   let index = 0;
@@ -126,15 +143,132 @@ function renderAssistantOutput(output: string) {
   return blocks;
 }
 
+function parseStoredThreads() {
+  if (typeof window === "undefined") {
+    return [] as WorkspaceThread[];
+  }
+
+  const storedValue = window.localStorage.getItem(workspaceStorageKey);
+
+  if (!storedValue) {
+    return [] as WorkspaceThread[];
+  }
+
+  try {
+    const parsed = JSON.parse(storedValue) as WorkspaceThread[];
+    return Array.isArray(parsed) ? sortThreads(parsed) : [];
+  } catch {
+    return [] as WorkspaceThread[];
+  }
+}
+
 export default function HomePage() {
+  const [workspaceReady, setWorkspaceReady] = useState(false);
+  const [threads, setThreads] = useState<WorkspaceThread[]>([]);
+  const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
+  const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null);
   const [mode, setMode] = useState<TrainingMode>("day-a");
   const [essay, setEssay] = useState("");
   const [phrasesInput, setPhrasesInput] = useState("");
   const [keywords, setKeywords] = useState("");
   const [apiState, setApiState] = useState<ApiState>(initialApiState);
 
-  const copy = modeCopy[mode];
+  useEffect(() => {
+    const storedThreads = parseStoredThreads();
+    const nextThreads = storedThreads.length > 0 ? storedThreads : [createEmptyThread()];
+    const initialThread = nextThreads[0];
+
+    setThreads(nextThreads);
+    setActiveThreadId(initialThread?.id ?? null);
+    setSelectedEntryId(initialThread?.entries.at(-1)?.id ?? null);
+    setMode(initialThread?.draft.mode ?? "day-a");
+    setEssay(initialThread?.draft.essay ?? "");
+    setPhrasesInput(initialThread?.draft.phrasesInput ?? "");
+    setKeywords(initialThread?.draft.keywords ?? "");
+    setWorkspaceReady(true);
+  }, []);
+
+  useEffect(() => {
+    if (!workspaceReady) {
+      return;
+    }
+
+    window.localStorage.setItem(workspaceStorageKey, JSON.stringify(sortThreads(threads)));
+  }, [threads, workspaceReady]);
+
+  const activeThread = useMemo(
+    () => threads.find((thread) => thread.id === activeThreadId) ?? null,
+    [threads, activeThreadId]
+  );
+
+  const selectedEntry = useMemo(
+    () => activeThread?.entries.find((entry) => entry.id === selectedEntryId) ?? null,
+    [activeThread, selectedEntryId]
+  );
+
   const phrases = useMemo(() => normalizePhraseInput(phrasesInput), [phrasesInput]);
+  const copy = modeCopy[mode];
+
+  function syncDraftToThread(nextDraft: Partial<WorkspaceThread["draft"]> & { mode?: TrainingMode }) {
+    if (!activeThreadId) {
+      return;
+    }
+
+    setThreads((currentThreads) =>
+      sortThreads(
+        currentThreads.map((thread) => {
+          if (thread.id !== activeThreadId) {
+            return thread;
+          }
+
+          return {
+            ...thread,
+            title: summarizeThreadTitle(nextDraft.essay ?? thread.draft.essay),
+            updatedAt: new Date().toISOString(),
+            draft: {
+              ...thread.draft,
+              ...nextDraft,
+              lastSavedAt: new Date().toISOString()
+            }
+          };
+        })
+      )
+    );
+  }
+
+  function handleSelectThread(threadId: string) {
+    const thread = threads.find((item) => item.id === threadId);
+
+    if (!thread) {
+      return;
+    }
+
+    setActiveThreadId(thread.id);
+    setSelectedEntryId(thread.entries.at(-1)?.id ?? null);
+    setMode(thread.draft.mode);
+    setEssay(thread.draft.essay);
+    setPhrasesInput(thread.draft.phrasesInput);
+    setKeywords(thread.draft.keywords);
+    setApiState(initialApiState);
+  }
+
+  function handleCreateThread() {
+    const nextThread = createEmptyThread();
+
+    setThreads((currentThreads) => sortThreads([nextThread, ...currentThreads]));
+    setActiveThreadId(nextThread.id);
+    setSelectedEntryId(null);
+    setMode(nextThread.draft.mode);
+    setEssay("");
+    setPhrasesInput("");
+    setKeywords("");
+    setApiState(initialApiState);
+  }
+
+  function handleModeChange(nextMode: TrainingMode) {
+    setMode(nextMode);
+    syncDraftToThread({ mode: nextMode });
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -144,15 +278,30 @@ export default function HomePage() {
     if (!trimmedEssay) {
       setApiState({
         loading: false,
-        output: "",
         error: "Please paste your essay before submitting."
       });
       return;
     }
 
+    const threadId = activeThread?.id ?? createEmptyThread().id;
+
+    if (!activeThread) {
+      const nextThread = createEmptyThread();
+      nextThread.id = threadId;
+      nextThread.title = summarizeThreadTitle(trimmedEssay);
+      nextThread.draft = {
+        mode,
+        essay,
+        phrasesInput,
+        keywords,
+        lastSavedAt: new Date().toISOString()
+      };
+      setThreads((currentThreads) => sortThreads([nextThread, ...currentThreads]));
+      setActiveThreadId(threadId);
+    }
+
     setApiState({
       loading: true,
-      output: "",
       error: ""
     });
 
@@ -180,15 +329,65 @@ export default function HomePage() {
         throw new Error(data.error || "The review request failed.");
       }
 
+      const now = new Date().toISOString();
+      const userEntry: WorkspaceEntry = {
+        id: createId(),
+        threadId,
+        kind: "student-draft",
+        label: getStudentEntryLabel(mode, activeThread?.entries ?? []),
+        mode,
+        content: trimmedEssay,
+        createdAt: now
+      };
+      const assistantEntry: WorkspaceEntry = {
+        id: createId(),
+        threadId,
+        kind: "assistant-feedback",
+        label: getAssistantEntryLabel(mode),
+        mode,
+        content: data.output || "",
+        createdAt: now
+      };
+
+      setThreads((currentThreads) => {
+        const existingThread = currentThreads.find((thread) => thread.id === threadId);
+        const baseThread = existingThread ?? createEmptyThread();
+        const nextEntries = [...baseThread.entries, userEntry, assistantEntry];
+        const nextTitle = summarizeThreadTitle(trimmedEssay);
+
+        const updatedThread: WorkspaceThread = {
+          ...baseThread,
+          id: threadId,
+          title: nextTitle,
+          updatedAt: now,
+          currentStage: getStageFromMode(mode, "assistant-feedback"),
+          entries: nextEntries,
+          draft: {
+            mode: mode === "day-a" ? "day-b" : mode,
+            essay: "",
+            phrasesInput,
+            keywords,
+            lastSavedAt: now
+          }
+        };
+
+        return sortThreads([
+          updatedThread,
+          ...currentThreads.filter((thread) => thread.id !== threadId)
+        ]);
+      });
+
+      setActiveThreadId(threadId);
+      setSelectedEntryId(assistantEntry.id);
+      setMode(mode === "day-a" ? "day-b" : mode);
+      setEssay("");
       setApiState({
         loading: false,
-        output: data.output || "",
         error: ""
       });
     } catch (error) {
       setApiState({
         loading: false,
-        output: "",
         error:
           error instanceof Error
             ? error.message
@@ -197,131 +396,247 @@ export default function HomePage() {
     }
   }
 
+  function handleLoadEntryIntoEditor(entry: WorkspaceEntry) {
+    if (entry.kind !== "student-draft") {
+      return;
+    }
+
+    setMode(entry.mode);
+    setEssay(entry.content);
+    setSelectedEntryId(entry.id);
+    syncDraftToThread({
+      mode: entry.mode,
+      essay: entry.content
+    });
+  }
+
+  const entryHeading = selectedEntry ? `${selectedEntry.label} · ${formatTimestamp(selectedEntry.createdAt)}` : "Assistant Response";
+  const entryMeta = selectedEntry
+    ? selectedEntry.kind === "assistant-feedback"
+      ? "Saved feedback snapshot from your workspace history."
+      : "Saved student draft snapshot. Use Load into editor to continue revising from here."
+    : "Your latest saved draft or assistant feedback will appear here.";
+
   return (
-    <main className="page-shell">
-      <section className="hero">
+    <main className="page-shell page-shell-wide">
+      <section className="hero hero-wide">
         <span className="eyebrow">Schliemann Cycle</span>
         <h1>Train your English writing inside one focused workspace.</h1>
         <p>
-          Draft on the left, get your guided revision on the right. This MVP is built for
-          your two-day cycle: Day A upgrades a fresh essay into a teachable version, and Day
-          B sharpens your rewrite into more stable, natural English.
+          Your draft history now stays in this browser. The left rail works like a lightweight
+          writing thread list, while the main workspace keeps each thread&apos;s latest draft and
+          feedback snapshots together.
         </p>
       </section>
 
-      <section className="workspace">
-        <div className="panel form-panel">
-          <div className="panel-header">
-            <div className="panel-header-copy">
-              <h2>{copy.title}</h2>
-              <p>{copy.subtitle}</p>
+      <section className="workspace workspace-layout">
+        <aside className="panel sidebar-panel">
+          <div className="sidebar-header">
+            <div>
+              <h2>Writing threads</h2>
+              <p>Local browser history for your essay cycles.</p>
             </div>
-
-            <div className="mode-tabs" role="tablist" aria-label="Training mode">
-              <button
-                type="button"
-                className="mode-tab"
-                aria-pressed={mode === "day-a"}
-                onClick={() => setMode("day-a")}
-              >
-                <span>Day A</span>
-              </button>
-              <button
-                type="button"
-                className="mode-tab"
-                aria-pressed={mode === "day-b"}
-                onClick={() => setMode("day-b")}
-              >
-                <span>Day B</span>
-              </button>
-            </div>
+            <button className="ghost-button" type="button" onClick={handleCreateThread}>
+              New thread
+            </button>
           </div>
 
-          <form className="form-grid" onSubmit={handleSubmit}>
-            <div className="field">
-              <label htmlFor="essay">{copy.essayLabel}</label>
-              <textarea
-                id="essay"
-                name="essay"
-                placeholder={copy.essayPlaceholder}
-                value={essay}
-                onChange={(event) => setEssay(event.target.value)}
-              />
-              <p className="field-help">
-                Submit is blocked if this field is empty. The assistant will still help if the
-                draft is shorter than ideal.
-              </p>
+          <div className="sidebar-list" role="list">
+            {threads.map((thread) => {
+              const isActive = thread.id === activeThreadId;
+
+              return (
+                <button
+                  key={thread.id}
+                  type="button"
+                  className="thread-card"
+                  data-active={isActive}
+                  onClick={() => handleSelectThread(thread.id)}
+                >
+                  <div className="thread-card-top">
+                    <strong>{thread.title}</strong>
+                    <span>{formatTimestamp(thread.updatedAt)}</span>
+                  </div>
+                  <p>{getThreadPreview(thread)}</p>
+                  <span className="thread-stage">{thread.currentStage.replace(/-/g, " ")}</span>
+                </button>
+              );
+            })}
+          </div>
+        </aside>
+
+        <div className="workspace-main">
+          <section className="panel form-panel">
+            <div className="panel-header panel-header-stacked">
+              <div className="panel-header-copy">
+                <h2>{copy.title}</h2>
+                <p>{copy.subtitle}</p>
+              </div>
+
+              <div className="mode-tabs" role="tablist" aria-label="Training mode">
+                <button
+                  type="button"
+                  className="mode-tab"
+                  aria-pressed={mode === "day-a"}
+                  onClick={() => handleModeChange("day-a")}
+                >
+                  <span>Day A</span>
+                </button>
+                <button
+                  type="button"
+                  className="mode-tab"
+                  aria-pressed={mode === "day-b"}
+                  onClick={() => handleModeChange("day-b")}
+                >
+                  <span>Day B</span>
+                </button>
+              </div>
             </div>
 
-            <div className="field-row">
-              <div className="field">
-                <label htmlFor="phrases">Phrases / collocations</label>
-                <textarea
-                  id="phrases"
-                  name="phrases"
-                  placeholder="due to, in advance, take responsibility for"
-                  value={phrasesInput}
-                  onChange={(event) => setPhrasesInput(event.target.value)}
-                />
-                <p className="field-help">
-                  {copy.phrasesHelp} Current count: <strong>{phrases.length}</strong>
+            <div className="thread-toolbar">
+              <div>
+                <strong>{activeThread?.title ?? "Untitled draft"}</strong>
+                <p>
+                  Autosaved in this browser. To sync across devices later, wire the same data
+                  model into Postgres.
                 </p>
               </div>
-
-              <div className="field">
-                <label htmlFor="keywords">Keywords / topic</label>
-                <textarea
-                  id="keywords"
-                  name="keywords"
-                  placeholder="Optional notes, focus areas, or topic hints"
-                  value={keywords}
-                  onChange={(event) => setKeywords(event.target.value)}
-                />
-                <p className="field-help">{copy.keywordsHelp}</p>
-              </div>
+              <span className="thread-toolbar-badge">
+                {activeThread ? `${activeThread.entries.length} saved snapshots` : "0 saved snapshots"}
+              </span>
             </div>
 
-            {apiState.error ? <div className="message error">{apiState.error}</div> : null}
-
-            {!apiState.error && !apiState.loading && apiState.output ? (
-              <div className="message success">
-                Response received. You can scroll the result panel and start your next rewrite
-                cycle from there.
+            {activeThread?.entries.length ? (
+              <div className="entry-tabs" role="tablist" aria-label="Thread snapshots">
+                {activeThread.entries.map((entry) => (
+                  <button
+                    key={entry.id}
+                    type="button"
+                    className="entry-tab"
+                    aria-pressed={selectedEntryId === entry.id}
+                    onClick={() => setSelectedEntryId(entry.id)}
+                  >
+                    <span>{entry.label}</span>
+                    <small>{entry.mode === "day-a" ? "Day A" : "Day B"}</small>
+                  </button>
+                ))}
               </div>
             ) : null}
 
-            <div className="actions">
-              <button className="submit-button" type="submit" disabled={apiState.loading}>
-                {apiState.loading ? "Submitting..." : "Submit to Schliemann"}
-              </button>
+            <form className="form-grid" onSubmit={handleSubmit}>
+              <div className="field">
+                <label htmlFor="essay">{copy.essayLabel}</label>
+                <textarea
+                  id="essay"
+                  name="essay"
+                  placeholder={copy.essayPlaceholder}
+                  value={essay}
+                  onChange={(event) => {
+                    const nextValue = event.target.value;
+                    setEssay(nextValue);
+                    syncDraftToThread({ essay: nextValue });
+                  }}
+                />
+                <p className="field-help">
+                  Autosaves to this browser as you type. Submit still requires a non-empty essay.
+                </p>
+              </div>
+
+              <div className="field-row">
+                <div className="field">
+                  <label htmlFor="phrases">Phrases / collocations</label>
+                  <textarea
+                    id="phrases"
+                    name="phrases"
+                    placeholder="due to, in advance, take responsibility for"
+                    value={phrasesInput}
+                    onChange={(event) => {
+                      const nextValue = event.target.value;
+                      setPhrasesInput(nextValue);
+                      syncDraftToThread({ phrasesInput: nextValue });
+                    }}
+                  />
+                  <p className="field-help">
+                    {copy.phrasesHelp} Current count: <strong>{phrases.length}</strong>
+                  </p>
+                </div>
+
+                <div className="field">
+                  <label htmlFor="keywords">Keywords / topic</label>
+                  <textarea
+                    id="keywords"
+                    name="keywords"
+                    placeholder="Optional notes, focus areas, or topic hints"
+                    value={keywords}
+                    onChange={(event) => {
+                      const nextValue = event.target.value;
+                      setKeywords(nextValue);
+                      syncDraftToThread({ keywords: nextValue });
+                    }}
+                  />
+                  <p className="field-help">{copy.keywordsHelp}</p>
+                </div>
+              </div>
+
+              {apiState.error ? <div className="message error">{apiState.error}</div> : null}
+
+              {!apiState.error && !apiState.loading && selectedEntry?.kind === "assistant-feedback" ? (
+                <div className="message success">
+                  Latest assistant feedback is saved in this browser. Pick any thread on the left to
+                  revisit older cycles.
+                </div>
+              ) : null}
+
+              <div className="actions">
+                <button className="submit-button" type="submit" disabled={apiState.loading || !workspaceReady}>
+                  {apiState.loading ? "Submitting..." : "Submit to Schliemann"}
+                </button>
+              </div>
+            </form>
+          </section>
+
+          <section className="panel result-card">
+            <div className="result-card-header">
+              <div>
+                <h2>{entryHeading}</h2>
+                <p className="result-meta">{entryMeta}</p>
+              </div>
+              {selectedEntry?.kind === "student-draft" ? (
+                <button
+                  className="ghost-button"
+                  type="button"
+                  onClick={() => handleLoadEntryIntoEditor(selectedEntry)}
+                >
+                  Load into editor
+                </button>
+              ) : null}
             </div>
-          </form>
+
+            {selectedEntry ? (
+              selectedEntry.kind === "assistant-feedback" ? (
+                <div className="response-content">{renderAssistantOutput(selectedEntry.content)}</div>
+              ) : (
+                <div className="student-entry-card">
+                  <div className="student-entry-meta">
+                    <span className="thread-stage">{selectedEntry.mode === "day-a" ? "Day A draft" : "Day B rewrite"}</span>
+                    <span>{formatTimestamp(selectedEntry.createdAt)}</span>
+                  </div>
+                  <pre>{selectedEntry.content}</pre>
+                </div>
+              )
+            ) : (
+              <div className="empty-state">
+                <div>
+                  <strong>No saved snapshot yet</strong>
+                  <p>
+                    Submit your current draft to save both the student version and the assistant
+                    response into this browser-side workspace history.
+                  </p>
+                </div>
+              </div>
+            )}
+          </section>
         </div>
-      </section>
-
-      <section className="panel result-card">
-        <h2>Assistant Response</h2>
-        <p className="result-meta">
-          {apiState.loading
-            ? "Waiting for the assistant to finish the run..."
-            : apiState.output
-              ? "Latest response from your Schliemann assistant."
-              : "Your result will appear here after submission."}
-        </p>
-
-        {apiState.output ? (
-          <div className="response-content">{renderAssistantOutput(apiState.output)}</div>
-        ) : (
-          <div className="empty-state">
-            <div>
-              <strong>No response yet</strong>
-              <p>
-                Paste a draft, choose a mode, and submit. The app will send your writing to
-                the server-side Gemini route and render the coaching output here.
-              </p>
-            </div>
-          </div>
-        )}
       </section>
     </main>
   );
