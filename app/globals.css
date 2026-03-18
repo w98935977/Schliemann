@@ -45,16 +45,28 @@ textarea {
   font: inherit;
 }
 
+button {
+  color: inherit;
+}
+
 .page-shell {
   width: min(1120px, calc(100% - 32px));
   margin: 0 auto;
   padding: 48px 0 72px;
 }
 
+.page-shell-wide {
+  width: min(1360px, calc(100% - 32px));
+}
+
 .hero {
   display: grid;
   gap: 18px;
   margin-bottom: 28px;
+}
+
+.hero-wide p {
+  max-width: 74ch;
 }
 
 .eyebrow {
@@ -88,12 +100,124 @@ textarea {
   margin-bottom: 22px;
 }
 
+.workspace-layout {
+  grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
+  align-items: start;
+}
+
+.workspace-main {
+  display: grid;
+  gap: 22px;
+}
+
 .panel {
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow);
   backdrop-filter: blur(14px);
+}
+
+.sidebar-panel,
+.form-panel,
+.result-card,
+.empty-state {
+  padding: 24px;
+}
+
+.sidebar-panel {
+  position: sticky;
+  top: 24px;
+}
+
+.sidebar-header,
+.result-card-header,
+.thread-card-top,
+.thread-toolbar,
+.student-entry-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+}
+
+.sidebar-header {
+  align-items: flex-start;
+  margin-bottom: 18px;
+}
+
+.sidebar-header h2,
+.panel-header h2,
+.result-card h2 {
+  margin: 0 0 6px;
+  font-size: 1.2rem;
+}
+
+.sidebar-header p,
+.panel-header p,
+.result-meta,
+.field-help,
+.empty-state p,
+.message,
+.thread-card p,
+.thread-toolbar p,
+.student-entry-meta {
+  color: var(--muted);
+}
+
+.sidebar-list {
+  display: grid;
+  gap: 12px;
+}
+
+.thread-card {
+  width: 100%;
+  border: 1px solid rgba(96, 72, 44, 0.14);
+  background: rgba(255, 252, 246, 0.84);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 160ms ease, transform 160ms ease, box-shadow 160ms ease;
+}
+
+.thread-card:hover,
+.thread-card[data-active="true"] {
+  transform: translateY(-1px);
+  border-color: rgba(174, 91, 47, 0.34);
+  box-shadow: 0 14px 28px rgba(127, 57, 23, 0.08);
+}
+
+.thread-card-top {
+  align-items: flex-start;
+}
+
+.thread-card-top strong {
+  font-size: 0.98rem;
+}
+
+.thread-card-top span,
+.thread-stage,
+.entry-tab small,
+.thread-toolbar-badge {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.thread-card p {
+  margin: 10px 0 12px;
+  line-height: 1.55;
+}
+
+.thread-stage,
+.thread-toolbar-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 6px 10px;
+  background: rgba(174, 91, 47, 0.1);
+  color: var(--brand-dark);
+  text-transform: capitalize;
 }
 
 .form-panel {
@@ -105,25 +229,15 @@ textarea {
   justify-content: space-between;
   gap: 18px;
   align-items: center;
-  margin-bottom: 24px;
+  margin-bottom: 20px;
+}
+
+.panel-header-stacked {
+  align-items: flex-start;
 }
 
 .panel-header-copy {
   min-width: 0;
-}
-
-.panel-header h2,
-.result-card h2 {
-  margin: 0 0 6px;
-  font-size: 1.2rem;
-}
-
-.panel-header p,
-.result-meta,
-.field-help,
-.empty-state p,
-.message {
-  color: var(--muted);
 }
 
 .mode-tabs {
@@ -137,8 +251,15 @@ textarea {
   overflow: hidden;
 }
 
-.mode-tab {
+.mode-tab,
+.entry-tab,
+.ghost-button {
   border: 0;
+  cursor: pointer;
+  transition: 160ms ease;
+}
+
+.mode-tab {
   background: transparent;
   color: var(--muted);
   min-height: 56px;
@@ -146,8 +267,6 @@ textarea {
   border-radius: 999px;
   font-weight: 700;
   white-space: nowrap;
-  cursor: pointer;
-  transition: 160ms ease;
 }
 
 .mode-tab span {
@@ -159,6 +278,59 @@ textarea {
   background: var(--brand);
   color: #fff7ee;
   box-shadow: 0 10px 24px rgba(127, 57, 23, 0.24);
+}
+
+.thread-toolbar {
+  align-items: flex-start;
+  margin-bottom: 18px;
+  padding: 16px 18px;
+  border-radius: var(--radius-md);
+  background: rgba(255, 252, 246, 0.82);
+  border: 1px solid rgba(96, 72, 44, 0.12);
+}
+
+.thread-toolbar strong {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 1rem;
+}
+
+.thread-toolbar p {
+  margin: 0;
+  line-height: 1.55;
+}
+
+.entry-tabs {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  margin-bottom: 18px;
+}
+
+.entry-tab {
+  min-width: 110px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: rgba(255, 248, 239, 0.96);
+  border: 1px solid rgba(96, 72, 44, 0.12);
+  text-align: left;
+}
+
+.entry-tab[aria-pressed="true"] {
+  background: rgba(174, 91, 47, 0.14);
+  border-color: rgba(174, 91, 47, 0.28);
+}
+
+.entry-tab span,
+.entry-tab small {
+  display: block;
+}
+
+.entry-tab span {
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 3px;
 }
 
 .form-grid {
@@ -225,15 +397,18 @@ textarea {
   margin-top: 8px;
 }
 
+.submit-button,
+.ghost-button {
+  border-radius: 999px;
+  padding: 12px 18px;
+  font-weight: 700;
+}
+
 .submit-button {
   border: 0;
-  border-radius: 999px;
   background: linear-gradient(135deg, var(--brand), #c87040);
   color: #fffaf4;
   padding: 14px 24px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: transform 160ms ease, box-shadow 160ms ease, opacity 160ms ease;
   box-shadow: 0 14px 30px rgba(127, 57, 23, 0.2);
 }
 
@@ -246,9 +421,14 @@ textarea {
   cursor: progress;
 }
 
-.result-card,
-.empty-state {
-  padding: 24px;
+.ghost-button {
+  background: rgba(255, 248, 239, 0.96);
+  border: 1px solid rgba(96, 72, 44, 0.14);
+}
+
+.ghost-button:hover {
+  background: rgba(174, 91, 47, 0.08);
+  border-color: rgba(174, 91, 47, 0.28);
 }
 
 .result-card {
@@ -257,7 +437,7 @@ textarea {
 
 .result-meta {
   font-size: 0.92rem;
-  margin: 0 0 16px;
+  margin: 0;
 }
 
 .response-content {
@@ -308,6 +488,26 @@ textarea {
   font-style: italic;
 }
 
+.student-entry-card {
+  display: grid;
+  gap: 14px;
+}
+
+.student-entry-meta {
+  justify-content: flex-start;
+}
+
+.student-entry-card pre {
+  margin: 0;
+  white-space: pre-wrap;
+  line-height: 1.7;
+  font-family: inherit;
+  background: rgba(255, 252, 248, 0.72);
+  border: 1px solid rgba(96, 72, 44, 0.14);
+  border-radius: var(--radius-md);
+  padding: 18px;
+}
+
 .message {
   padding: 14px 16px;
   border-radius: var(--radius-sm);
@@ -342,17 +542,31 @@ textarea {
   font-size: 1.05rem;
 }
 
+@media (max-width: 1100px) {
+  .workspace-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar-panel {
+    position: static;
+  }
+}
+
 @media (max-width: 960px) {
   .field-row {
     grid-template-columns: 1fr;
   }
 
-  .page-shell {
-    width: min(100% - 20px, 1120px);
+  .page-shell,
+  .page-shell-wide {
+    width: min(100% - 20px, 1360px);
     padding-top: 28px;
   }
 
-  .panel-header {
+  .panel-header,
+  .sidebar-header,
+  .thread-toolbar,
+  .result-card-header {
     flex-direction: column;
     align-items: flex-start;
   }
