@@ -101,13 +101,42 @@ button {
 }
 
 .workspace-layout {
-  grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
+  position: relative;
+  grid-template-columns: 0 minmax(0, 1fr);
   align-items: start;
+  transition: grid-template-columns 180ms ease;
+}
+
+.workspace-layout[data-sidebar-open="true"] {
+  grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
 }
 
 .workspace-main {
   display: grid;
   gap: 22px;
+}
+
+.sidebar-toggle {
+  position: sticky;
+  top: 18px;
+  z-index: 3;
+  justify-self: start;
+  align-self: start;
+  margin-left: 4px;
+  border: 1px solid rgba(96, 72, 44, 0.14);
+  border-radius: 999px;
+  background: rgba(255, 248, 239, 0.96);
+  color: var(--text);
+  padding: 12px 16px;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  box-shadow: 0 10px 24px rgba(72, 44, 19, 0.08);
+}
+
+.workspace-layout[data-sidebar-open="true"] .sidebar-toggle {
+  margin-left: -2px;
 }
 
 .panel {
@@ -128,6 +157,18 @@ button {
 .sidebar-panel {
   position: sticky;
   top: 24px;
+  width: 320px;
+  overflow: hidden;
+  transform: translateX(-110%);
+  opacity: 0;
+  pointer-events: none;
+  transition: transform 180ms ease, opacity 180ms ease;
+}
+
+.sidebar-panel[data-open="true"] {
+  transform: translateX(0);
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .sidebar-header,
@@ -170,6 +211,13 @@ button {
   gap: 12px;
 }
 
+.sidebar-actions,
+.thread-card-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .thread-card {
   width: 100%;
   border: 1px solid rgba(96, 72, 44, 0.14);
@@ -207,6 +255,37 @@ button {
 .thread-card p {
   margin: 10px 0 12px;
   line-height: 1.55;
+}
+
+.icon-button,
+.thread-delete-button {
+  border: 1px solid rgba(96, 72, 44, 0.14);
+  background: rgba(255, 252, 246, 0.84);
+  color: var(--muted);
+  cursor: pointer;
+  transition: 160ms ease;
+}
+
+.icon-button {
+  width: 42px;
+  height: 42px;
+  border-radius: 999px;
+  font-size: 1rem;
+}
+
+.thread-delete-button {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.icon-button:hover,
+.thread-delete-button:hover {
+  color: var(--text);
+  border-color: rgba(174, 91, 47, 0.28);
+  background: rgba(174, 91, 47, 0.08);
 }
 
 .thread-stage,
@@ -549,6 +628,7 @@ button {
 
   .sidebar-panel {
     position: static;
+    width: 100%;
   }
 }
 
