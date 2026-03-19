@@ -168,6 +168,7 @@ function ThreadCardButton({ isActive, onDelete, onSelect, thread }: ThreadCardPr
       data-active={isActive}
       role="button"
       tabIndex={0}
+      aria-pressed={isActive}
       onClick={onSelect}
       onKeyDown={(event) => {
         if (event.key === "Enter" || event.key === " ") {
