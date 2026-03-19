@@ -492,6 +492,81 @@ export default function HomePage() {
       ? "Saved feedback snapshot from your workspace history."
       : "Saved student draft snapshot. Use Load into editor to continue revising from here."
     : "Your latest saved draft or assistant feedback will appear here.";
+  const threadCards = threads.map(renderThreadCard);
+  const threadEntries = activeThread?.entries ?? [];
+  const savedSnapshotCount = activeThread ? `${activeThread.entries.length} saved snapshots` : "0 saved snapshots";
+
+  function renderEntryTabs() {
+    if (!threadEntries.length) {
+      return null;
+    }
+
+    return (
+      <div className="entry-tabs" role="tablist" aria-label="Thread snapshots">
+        {threadEntries.map((entry) => (
+          <button
+            key={entry.id}
+            type="button"
+            className="entry-tab"
+            aria-pressed={selectedEntryId === entry.id}
+            onClick={() => setSelectedEntryId(entry.id)}
+          >
+            <span>{entry.label}</span>
+            <small>{entry.mode === "day-a" ? "Day A" : "Day B"}</small>
+          </button>
+        ))}
+      </div>
+    );
+  }
+
+  function renderThreadToolbar() {
+    return (
+      <div className="thread-toolbar">
+        <div>
+          <strong>{activeThread?.title ?? "Untitled draft"}</strong>
+          <p>
+            Autosaved in this browser. To sync across devices later, wire the same data model
+            into Postgres.
+          </p>
+        </div>
+        <span className="thread-toolbar-badge">{savedSnapshotCount}</span>
+      </div>
+    );
+  }
+
+  function renderSidebar() {
+    return (
+      <aside
+        id="thread-sidebar"
+        className="panel sidebar-panel"
+        data-open={isSidebarOpen}
+      >
+        <div className="sidebar-header">
+          <div>
+            <h2>Writing threads</h2>
+            <p>Local browser history for your essay cycles.</p>
+          </div>
+          <div className="sidebar-actions">
+            <button className="ghost-button" type="button" onClick={handleCreateThread}>
+              New thread
+            </button>
+            <button
+              className="icon-button"
+              type="button"
+              aria-label="Collapse thread sidebar"
+              onClick={() => setIsSidebarOpen(false)}
+            >
+              ←
+            </button>
+          </div>
+        </div>
+
+        <div className="sidebar-list" role="list">
+          {threadCards}
+        </div>
+      </aside>
+    );
+  }
 
   return (
     <main className="page-shell page-shell-wide">
@@ -522,31 +597,7 @@ export default function HomePage() {
           <span>{isSidebarOpen ? "Hide threads" : "Show threads"}</span>
         </button>
 
-        <aside
-          id="thread-sidebar"
-          className="panel sidebar-panel"
-          data-open={isSidebarOpen}
-        >
-          <div className="sidebar-header">
-            <div>
-              <h2>Writing threads</h2>
-              <p>Local browser history for your essay cycles.</p>
-            </div>
-            <div className="sidebar-actions">
-              <button className="ghost-button" type="button" onClick={handleCreateThread}>
-                New thread
-              </button>
-              <button
-                className="icon-button"
-                type="button"
-                aria-label="Collapse thread sidebar"
-                onClick={() => setIsSidebarOpen(false)}
-              >
-                ←
-              </button>
-            </div>
-          </div>
-        </aside>
+        {renderSidebar()}
 
         <div className="workspace-main">
           <section className="panel form-panel">
@@ -556,117 +607,45 @@ export default function HomePage() {
                 <p>{copy.subtitle}</p>
               </div>
 
-          <div className="sidebar-list" role="list">
-            {threads.map((thread) => {
-              const isActive = thread.id === activeThreadId;
+              <div className="mode-tabs" role="tablist" aria-label="Training mode">
+                <button
+                  type="button"
+                  className="mode-tab"
+                  aria-pressed={mode === "day-a"}
+                  onClick={() => handleModeChange("day-a")}
+                >
+                  <span>Day A</span>
+                </button>
+                <button
+                  type="button"
+                  className="mode-tab"
+                  aria-pressed={mode === "day-b"}
+                  onClick={() => handleModeChange("day-b")}
+                >
+                  <span>Day B</span>
+                </button>
+              </div>
+            </div>
 
-              return (
-                <div
-                  key={thread.id}
-                  className="thread-card"
-                  data-active={isActive}
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => handleSelectThread(thread.id)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" || event.key === " ") {
-                      event.preventDefault();
-                      handleSelectThread(thread.id);
-                    }
+            {renderThreadToolbar()}
+            {renderEntryTabs()}
+
+            <form className="form-grid" onSubmit={handleSubmit}>
+              <div className="field">
+                <label htmlFor="essay">{copy.essayLabel}</label>
+                <textarea
+                  id="essay"
+                  name="essay"
+                  placeholder={copy.essayPlaceholder}
+                  value={essay}
+                  onChange={(event) => {
+                    const nextValue = event.target.value;
+                    setEssay(nextValue);
+                    syncDraftToThread({ essay: nextValue });
                   }}
-                >
-                  <div className="thread-card-top">
-                    <strong>{thread.title}</strong>
-                    <div className="thread-card-actions">
-                      <span>{formatTimestamp(thread.updatedAt)}</span>
-                      <button
-                        className="thread-delete-button"
-                        type="button"
-                        aria-label={`Delete ${thread.title}`}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          handleDeleteThread(thread.id);
-                        }}
-                      >
-                        ×
-                      </button>
-                    </div>
-                  </div>
-                  <p>{getThreadPreview(thread)}</p>
-                  <span className="thread-stage">{thread.currentStage.replace(/-/g, " ")}</span>
-                </div>
-              );
-            })}
-          </div>
-        </aside>
-
-        <div className="workspace-main">
-          <section className="panel form-panel">
-            <div className="panel-header panel-header-stacked">
-              <div className="panel-header-copy">
-                <h2>{copy.title}</h2>
-                <p>{copy.subtitle}</p>
-              </div>
-
-              <div className="mode-tabs" role="tablist" aria-label="Training mode">
-                <button
-                  type="button"
-                  className="mode-tab"
-                  aria-pressed={mode === "day-a"}
-                  onClick={() => handleModeChange("day-a")}
-                >
-                  <span>Day A</span>
-                </button>
-                <button
-                  type="button"
-                  className="mode-tab"
-                  aria-pressed={mode === "day-b"}
-                  onClick={() => handleModeChange("day-b")}
-                >
-                  <span>Day B</span>
-                </button>
-              </div>
-            </div>
-
-          <div className="sidebar-list" role="list">
-            {threads.map((thread) => renderThreadCard(thread))}
-          </div>
-        </aside>
-
-        <div className="workspace-main">
-          <section className="panel form-panel">
-            <div className="panel-header panel-header-stacked">
-              <div className="panel-header-copy">
-                <h2>{copy.title}</h2>
-                <p>{copy.subtitle}</p>
-              </div>
-
-              <div className="mode-tabs" role="tablist" aria-label="Training mode">
-                <button
-                  type="button"
-                  className="mode-tab"
-                  aria-pressed={mode === "day-a"}
-                  onClick={() => handleModeChange("day-a")}
-                >
-                  <span>Day A</span>
-                </button>
-                <button
-                  type="button"
-                  className="mode-tab"
-                  aria-pressed={mode === "day-b"}
-                  onClick={() => handleModeChange("day-b")}
-                >
-                  <span>Day B</span>
-                </button>
-              </div>
-            </div>
-
-            <div className="thread-toolbar">
-              <div>
-                <strong>{activeThread?.title ?? "Untitled draft"}</strong>
-                <p>
-                  Autosaved in this browser. To sync across devices later, wire the same data
-                  model into Postgres.
+                />
+                <p className="field-help">
+                  Autosaves to this browser as you type. Submit still requires a non-empty essay.
                 </p>
               </div>
               <span className="thread-toolbar-badge">
@@ -690,25 +669,6 @@ export default function HomePage() {
                 ))}
               </div>
             ) : null}
-
-            <form className="form-grid" onSubmit={handleSubmit}>
-              <div className="field">
-                <label htmlFor="essay">{copy.essayLabel}</label>
-                <textarea
-                  id="essay"
-                  name="essay"
-                  placeholder={copy.essayPlaceholder}
-                  value={essay}
-                  onChange={(event) => {
-                    const nextValue = event.target.value;
-                    setEssay(nextValue);
-                    syncDraftToThread({ essay: nextValue });
-                  }}
-                />
-                <p className="field-help">
-                  Autosaves to this browser as you type. Submit still requires a non-empty essay.
-                </p>
-              </div>
 
               <div className="field-row">
                 <div className="field">
