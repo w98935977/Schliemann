@@ -26,6 +26,7 @@ export type WorkspaceThread = {
   createdAt: string;
   updatedAt: string;
   currentStage: string;
+  isPlaceholder?: boolean;
   entries: WorkspaceEntry[];
   draft: ThreadDraft;
 };
@@ -51,7 +52,7 @@ export function summarizeThreadTitle(essay: string) {
   return firstLine.length > 48 ? `${firstLine.slice(0, 48).trimEnd()}…` : firstLine;
 }
 
-export function createEmptyThread(): WorkspaceThread {
+export function createEmptyThread(options?: { isPlaceholder?: boolean }): WorkspaceThread {
   const now = new Date().toISOString();
 
   return {
@@ -60,6 +61,7 @@ export function createEmptyThread(): WorkspaceThread {
     createdAt: now,
     updatedAt: now,
     currentStage: "draft-v1",
+    isPlaceholder: options?.isPlaceholder ?? false,
     entries: [],
     draft: {
       mode: "day-a",

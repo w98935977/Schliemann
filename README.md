@@ -85,4 +85,8 @@ Failure response:
 
 - This repo uses Google's official `@google/genai` SDK with a single `generateContent` request per submission.
 - `gemini-2.5-flash` is the default model because it is fast and has a documented free tier on Google's pricing page.
+<<<<<<< codex/check-project-status-if7m0m
+
+=======
+>>>>>>> main
 - The next persistence milestone is moving thread history from browser-local storage to a shared Postgres database for cross-device sync.

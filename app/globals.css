@@ -100,6 +100,13 @@ button {
   margin-bottom: 22px;
 }
 
+<<<<<<< codex/check-project-status-if7m0m
+.sidebar-toggle {
+  position: fixed;
+  top: 24px;
+  left: 24px;
+  z-index: 12;
+=======
 .workspace-layout {
   position: relative;
   grid-template-columns: 0 minmax(0, 1fr);
@@ -123,6 +130,7 @@ button {
   justify-self: start;
   align-self: start;
   margin-left: 4px;
+>>>>>>> main
   border: 1px solid rgba(96, 72, 44, 0.14);
   border-radius: 999px;
   background: rgba(255, 248, 239, 0.96);
@@ -136,6 +144,13 @@ button {
 }
 
 .sidebar-toggle[data-open="false"] {
+<<<<<<< codex/check-project-status-if7m0m
+  padding-right: 18px;
+}
+
+.sidebar-toggle[data-open="false"] span:last-child {
+  display: inline;
+=======
   width: 48px;
   height: 48px;
   padding: 0;
@@ -149,6 +164,7 @@ button {
 
 .workspace-layout[data-sidebar-open="true"] .sidebar-toggle {
   margin-left: -2px;
+>>>>>>> main
 }
 
 .panel {
@@ -167,9 +183,18 @@ button {
 }
 
 .sidebar-panel {
+<<<<<<< codex/check-project-status-if7m0m
+  position: fixed;
+  top: 24px;
+  left: 24px;
+  z-index: 11;
+  width: min(320px, calc(100vw - 48px));
+  max-height: calc(100vh - 48px);
+=======
   position: sticky;
   top: 24px;
   width: 320px;
+>>>>>>> main
   overflow: hidden;
   transform: translateX(-110%);
   opacity: 0;
@@ -181,6 +206,10 @@ button {
   transform: translateX(0);
   opacity: 1;
   pointer-events: auto;
+<<<<<<< codex/check-project-status-if7m0m
+  overflow-y: auto;
+=======
+>>>>>>> main
 }
 
 .sidebar-header,
@@ -215,12 +244,196 @@ button {
 .thread-card p,
 .thread-toolbar p,
 .student-entry-meta {
+<<<<<<< codex/check-project-status-if7m0m
+=======
   color: var(--muted);
 }
 
 .sidebar-list {
   display: grid;
   gap: 12px;
+}
+
+.sidebar-actions,
+.thread-card-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.thread-card {
+  width: 100%;
+  border: 1px solid rgba(96, 72, 44, 0.14);
+  background: rgba(255, 252, 246, 0.84);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 160ms ease, transform 160ms ease, box-shadow 160ms ease;
+}
+
+.thread-card:hover,
+.thread-card[data-active="true"] {
+  transform: translateY(-1px);
+  border-color: rgba(174, 91, 47, 0.34);
+  box-shadow: 0 14px 28px rgba(127, 57, 23, 0.08);
+}
+
+.thread-card-top {
+  align-items: flex-start;
+}
+
+.thread-card-top strong {
+  font-size: 0.98rem;
+}
+
+.thread-card-actions {
+  min-width: 0;
+}
+
+.thread-card-top span,
+.thread-stage,
+.entry-tab small,
+.thread-toolbar-badge {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.thread-card p {
+  margin: 10px 0 12px;
+  line-height: 1.55;
+}
+
+.icon-button,
+.thread-delete-button {
+  border: 1px solid rgba(96, 72, 44, 0.14);
+  background: rgba(255, 252, 246, 0.84);
+>>>>>>> main
+  color: var(--muted);
+  cursor: pointer;
+  transition: 160ms ease;
+}
+
+.icon-button {
+  width: 42px;
+  height: 42px;
+  border-radius: 999px;
+  font-size: 1rem;
+}
+
+.thread-delete-button {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  font-size: 1rem;
+  line-height: 1;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.icon-button:hover,
+.thread-delete-button:hover {
+  color: var(--text);
+  border-color: rgba(174, 91, 47, 0.28);
+  background: rgba(174, 91, 47, 0.08);
+}
+
+.thread-card:hover .thread-delete-button,
+.thread-card:focus-within .thread-delete-button,
+.thread-card[data-active="true"] .thread-delete-button {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.thread-stage,
+.thread-toolbar-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 6px 10px;
+  background: rgba(174, 91, 47, 0.1);
+  color: var(--brand-dark);
+  text-transform: capitalize;
+}
+
+.form-panel {
+  padding: 28px;
+}
+
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.panel-header-stacked {
+  align-items: flex-start;
+}
+
+.panel-header-copy {
+  min-width: 0;
+}
+
+.thread-card p {
+  margin: 10px 0 12px;
+  line-height: 1.55;
+}
+
+.thread-stage,
+.thread-toolbar-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 6px 10px;
+  background: rgba(174, 91, 47, 0.1);
+  color: var(--brand-dark);
+  text-transform: capitalize;
+}
+
+.form-panel {
+  padding: 28px;
+}
+
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.panel-header-stacked {
+  align-items: flex-start;
+}
+
+.panel-header-copy {
+  min-width: 0;
+}
+
+.sidebar-list {
+  display: grid;
+  gap: 12px;
+}
+
+.empty-thread-list {
+  display: grid;
+  gap: 8px;
+  padding: 18px;
+  border: 1px dashed rgba(96, 72, 44, 0.18);
+  border-radius: var(--radius-md);
+  background: rgba(255, 252, 246, 0.76);
+}
+
+.empty-thread-list strong {
+  font-size: 0.98rem;
+}
+
+.empty-thread-list p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.6;
 }
 
 .sidebar-actions,
@@ -311,42 +524,6 @@ button {
 .thread-card[data-active="true"] .thread-delete-button {
   opacity: 1;
   pointer-events: auto;
-}
-
-.thread-stage,
-.thread-toolbar-badge {
-  display: inline-flex;
-  align-items: center;
-  border-radius: 999px;
-  padding: 6px 10px;
-  background: rgba(174, 91, 47, 0.1);
-  color: var(--brand-dark);
-  text-transform: capitalize;
-}
-
-.form-panel {
-  padding: 28px;
-}
-
-.panel-header {
-  display: flex;
-  justify-content: space-between;
-  gap: 18px;
-  align-items: center;
-  margin-bottom: 20px;
-}
-
-.panel-header-stacked {
-  align-items: flex-start;
-}
-
-.panel-header-copy {
-  min-width: 0;
-}
-
-.thread-card p {
-  margin: 10px 0 12px;
-  line-height: 1.55;
 }
 
 .thread-stage,
@@ -575,6 +752,13 @@ button {
   min-height: 420px;
 }
 
+.result-card-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+
 .result-meta {
   font-size: 0.92rem;
   margin: 0;
@@ -715,6 +899,21 @@ button {
   .mode-tabs {
     grid-template-columns: repeat(2, minmax(96px, 1fr));
     width: 100%;
+  }
+
+  .sidebar-toggle,
+  .sidebar-panel {
+    left: 10px;
+  }
+
+  .sidebar-toggle {
+    top: 10px;
+  }
+
+  .sidebar-panel {
+    top: 66px;
+    width: min(320px, calc(100vw - 20px));
+    max-height: calc(100vh - 76px);
   }
 
   .result-card {
