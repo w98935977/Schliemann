@@ -1,6 +1,6 @@
 # Schliemann Writing Studio
 
-Single-page Next.js MVP for your Schliemann English-writing workflow. The app lets you paste an essay or rewrite, choose `Day A` or `Day B`, submit it to a server-side Gemini API route, and read the coaching response in the browser.
+Single-page Next.js MVP for your Schliemann English-writing workflow. The app lets you draft inside a thread-based workspace, choose `Day A` or `Day B`, submit to a server-side Gemini API route, and review saved snapshots in the browser.
 
 ## Features
 
@@ -85,5 +85,8 @@ Failure response:
 
 - This repo uses Google's official `@google/genai` SDK with a single `generateContent` request per submission.
 - `gemini-2.5-flash` is the default model because it is fast and has a documented free tier on Google's pricing page.
+<<<<<<< codex/check-project-status-if7m0m
 
+=======
+>>>>>>> main
 - The next persistence milestone is moving thread history from browser-local storage to a shared Postgres database for cross-device sync.
