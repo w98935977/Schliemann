@@ -164,6 +164,7 @@ function parseStoredThreads() {
 
 export default function HomePage() {
   const [workspaceReady, setWorkspaceReady] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [threads, setThreads] = useState<WorkspaceThread[]>([]);
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
   const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null);
@@ -258,11 +259,45 @@ export default function HomePage() {
     setThreads((currentThreads) => sortThreads([nextThread, ...currentThreads]));
     setActiveThreadId(nextThread.id);
     setSelectedEntryId(null);
+    setIsSidebarOpen(true);
     setMode(nextThread.draft.mode);
     setEssay("");
     setPhrasesInput("");
     setKeywords("");
     setApiState(initialApiState);
+  }
+
+  function handleDeleteThread(threadId: string) {
+    const thread = threads.find((item) => item.id === threadId);
+
+    if (!thread) {
+      return;
+    }
+
+    const shouldDelete = window.confirm(
+      `Delete "${thread.title}" and all saved snapshots in this browser?`
+    );
+
+    if (!shouldDelete) {
+      return;
+    }
+
+    const remainingThreads = threads.filter((item) => item.id !== threadId);
+    const fallbackThread = remainingThreads[0] ?? createEmptyThread();
+    const nextThreads =
+      remainingThreads.length > 0 ? sortThreads(remainingThreads) : [fallbackThread];
+
+    setThreads(nextThreads);
+
+    if (activeThreadId === threadId) {
+      setActiveThreadId(fallbackThread.id);
+      setSelectedEntryId(fallbackThread.entries.at(-1)?.id ?? null);
+      setMode(fallbackThread.draft.mode);
+      setEssay(fallbackThread.draft.essay);
+      setPhrasesInput(fallbackThread.draft.phrasesInput);
+      setKeywords(fallbackThread.draft.keywords);
+      setApiState(initialApiState);
+    }
   }
 
   function handleModeChange(nextMode: TrainingMode) {
@@ -429,37 +464,96 @@ export default function HomePage() {
         </p>
       </section>
 
-      <section className="workspace workspace-layout">
-        <aside className="panel sidebar-panel">
+      <section
+        className="workspace workspace-layout"
+        data-sidebar-open={isSidebarOpen}
+      >
+        <button
+          className="sidebar-toggle"
+          type="button"
+          data-open={isSidebarOpen}
+          aria-expanded={isSidebarOpen}
+          aria-controls="thread-sidebar"
+          aria-label={isSidebarOpen ? "Hide thread sidebar" : "Show thread sidebar"}
+          onClick={() => setIsSidebarOpen((currentValue) => !currentValue)}
+        >
+          <span aria-hidden="true">{isSidebarOpen ? "←" : "☰"}</span>
+          <span>{isSidebarOpen ? "Hide threads" : "Show threads"}</span>
+        </button>
+
+        <aside
+          id="thread-sidebar"
+          className="panel sidebar-panel"
+          data-open={isSidebarOpen}
+        >
           <div className="sidebar-header">
             <div>
               <h2>Writing threads</h2>
               <p>Local browser history for your essay cycles.</p>
             </div>
-            <button className="ghost-button" type="button" onClick={handleCreateThread}>
-              New thread
-            </button>
+            <div className="sidebar-actions">
+              <button className="ghost-button" type="button" onClick={handleCreateThread}>
+                New thread
+              </button>
+              <button
+                className="icon-button"
+                type="button"
+                aria-label="Collapse thread sidebar"
+                onClick={() => setIsSidebarOpen(false)}
+              >
+                ←
+              </button>
+            </div>
           </div>
+        </aside>
+
+        <div className="workspace-main">
+          <section className="panel form-panel">
+            <div className="panel-header panel-header-stacked">
+              <div className="panel-header-copy">
+                <h2>{copy.title}</h2>
+                <p>{copy.subtitle}</p>
+              </div>
 
           <div className="sidebar-list" role="list">
             {threads.map((thread) => {
               const isActive = thread.id === activeThreadId;
 
               return (
-                <button
+                <div
                   key={thread.id}
-                  type="button"
                   className="thread-card"
                   data-active={isActive}
+                  role="button"
+                  tabIndex={0}
                   onClick={() => handleSelectThread(thread.id)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      handleSelectThread(thread.id);
+                    }
+                  }}
                 >
                   <div className="thread-card-top">
                     <strong>{thread.title}</strong>
-                    <span>{formatTimestamp(thread.updatedAt)}</span>
+                    <div className="thread-card-actions">
+                      <span>{formatTimestamp(thread.updatedAt)}</span>
+                      <button
+                        className="thread-delete-button"
+                        type="button"
+                        aria-label={`Delete ${thread.title}`}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          handleDeleteThread(thread.id);
+                        }}
+                      >
+                        ×
+                      </button>
+                    </div>
                   </div>
                   <p>{getThreadPreview(thread)}</p>
                   <span className="thread-stage">{thread.currentStage.replace(/-/g, " ")}</span>
-                </button>
+                </div>
               );
             })}
           </div>

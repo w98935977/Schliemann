@@ -5,8 +5,10 @@ Single-page Next.js MVP for your Schliemann English-writing workflow. The app le
 ## Features
 
 - Left-side thread list so each writing cycle feels closer to a chat workspace
+- Collapsible sidebar that starts closed, similar to GPT-style navigation
 - Browser-local autosave for the active draft, phrases, and keywords in each thread
 - Version timeline per thread so you can revisit saved student drafts and assistant feedback
+- Delete-thread controls for removing browser-local conversation history
 - `Day A` mode for Essay v1 -> `v2`, `Error Patterns`, `Sentence Bank`, `Drills`
 - `Day B` mode for Rewrite v3 -> `Progress`, `Habits To Keep Fixing`, `More Natural Version`
 - Server-side Gemini call so the API key never reaches the browser
