@@ -344,6 +344,42 @@ button {
   min-width: 0;
 }
 
+.thread-card p {
+  margin: 10px 0 12px;
+  line-height: 1.55;
+}
+
+.thread-stage,
+.thread-toolbar-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 6px 10px;
+  background: rgba(174, 91, 47, 0.1);
+  color: var(--brand-dark);
+  text-transform: capitalize;
+}
+
+.form-panel {
+  padding: 28px;
+}
+
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.panel-header-stacked {
+  align-items: flex-start;
+}
+
+.panel-header-copy {
+  min-width: 0;
+}
+
 .mode-tabs {
   display: grid;
   grid-template-columns: repeat(2, 104px);

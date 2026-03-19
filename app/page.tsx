@@ -635,6 +635,27 @@ export default function HomePage() {
                   Autosaves to this browser as you type. Submit still requires a non-empty essay.
                 </p>
               </div>
+              <span className="thread-toolbar-badge">
+                {activeThread ? `${activeThread.entries.length} saved snapshots` : "0 saved snapshots"}
+              </span>
+            </div>
+
+            {activeThread?.entries.length ? (
+              <div className="entry-tabs" role="tablist" aria-label="Thread snapshots">
+                {activeThread.entries.map((entry) => (
+                  <button
+                    key={entry.id}
+                    type="button"
+                    className="entry-tab"
+                    aria-pressed={selectedEntryId === entry.id}
+                    onClick={() => setSelectedEntryId(entry.id)}
+                  >
+                    <span>{entry.label}</span>
+                    <small>{entry.mode === "day-a" ? "Day A" : "Day B"}</small>
+                  </button>
+                ))}
+              </div>
+            ) : null}
 
               <div className="field-row">
                 <div className="field">
