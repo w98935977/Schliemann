@@ -445,6 +445,47 @@ export default function HomePage() {
     });
   }
 
+  function renderThreadCard(thread: WorkspaceThread) {
+    const isActive = thread.id === activeThreadId;
+
+    return (
+      <div
+        key={thread.id}
+        className="thread-card"
+        data-active={isActive}
+        role="button"
+        tabIndex={0}
+        onClick={() => handleSelectThread(thread.id)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            handleSelectThread(thread.id);
+          }
+        }}
+      >
+        <div className="thread-card-top">
+          <strong>{thread.title}</strong>
+          <div className="thread-card-actions">
+            <span>{formatTimestamp(thread.updatedAt)}</span>
+            <button
+              className="thread-delete-button"
+              type="button"
+              aria-label={`Delete ${thread.title}`}
+              onClick={(event) => {
+                event.stopPropagation();
+                handleDeleteThread(thread.id);
+              }}
+            >
+              ×
+            </button>
+          </div>
+        </div>
+        <p>{getThreadPreview(thread)}</p>
+        <span className="thread-stage">{thread.currentStage.replace(/-/g, " ")}</span>
+      </div>
+    );
+  }
+
   const entryHeading = selectedEntry ? `${selectedEntry.label} · ${formatTimestamp(selectedEntry.createdAt)}` : "Assistant Response";
   const entryMeta = selectedEntry
     ? selectedEntry.kind === "assistant-feedback"
@@ -556,6 +597,39 @@ export default function HomePage() {
                 </div>
               );
             })}
+          </div>
+        </aside>
+
+        <div className="workspace-main">
+          <section className="panel form-panel">
+            <div className="panel-header panel-header-stacked">
+              <div className="panel-header-copy">
+                <h2>{copy.title}</h2>
+                <p>{copy.subtitle}</p>
+              </div>
+
+              <div className="mode-tabs" role="tablist" aria-label="Training mode">
+                <button
+                  type="button"
+                  className="mode-tab"
+                  aria-pressed={mode === "day-a"}
+                  onClick={() => handleModeChange("day-a")}
+                >
+                  <span>Day A</span>
+                </button>
+                <button
+                  type="button"
+                  className="mode-tab"
+                  aria-pressed={mode === "day-b"}
+                  onClick={() => handleModeChange("day-b")}
+                >
+                  <span>Day B</span>
+                </button>
+              </div>
+            </div>
+
+          <div className="sidebar-list" role="list">
+            {threads.map((thread) => renderThreadCard(thread))}
           </div>
         </aside>
 
