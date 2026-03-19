@@ -204,7 +204,8 @@ function EntryTabButton({ entry, isSelected, onSelect }: EntryTabButtonProps) {
     <button
       type="button"
       className="entry-tab"
-      aria-pressed={isSelected}
+      role="tab"
+      aria-selected={isSelected}
       onClick={onSelect}
     >
       <span>{entry.label}</span>
