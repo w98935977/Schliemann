@@ -163,39 +163,28 @@ function renderAssistantOutput(output: string) {
 
 function ThreadCardButton({ isActive, onDelete, onSelect, thread }: ThreadCardProps) {
   return (
-    <div
-      className="thread-card"
-      data-active={isActive}
-      role="button"
-      tabIndex={0}
-      aria-pressed={isActive}
-      onClick={onSelect}
-      onKeyDown={(event) => {
-        if (event.key === "Enter" || event.key === " ") {
-          event.preventDefault();
-          onSelect();
-        }
-      }}
-    >
-      <div className="thread-card-top">
-        <strong>{thread.title}</strong>
-        <div className="thread-card-actions">
+    <div className="thread-card" data-active={isActive}>
+      <button
+        type="button"
+        className="thread-card-select"
+        aria-current={isActive ? true : undefined}
+        onClick={onSelect}
+      >
+        <div className="thread-card-top">
+          <strong>{thread.title}</strong>
           <span>{formatTimestamp(thread.updatedAt)}</span>
-          <button
-            className="thread-delete-button"
-            type="button"
-            aria-label={`Delete ${thread.title}`}
-            onClick={(event) => {
-              event.stopPropagation();
-              onDelete();
-            }}
-          >
-            ×
-          </button>
         </div>
-      </div>
-      <p>{getThreadPreview(thread)}</p>
-      <span className="thread-stage">{thread.currentStage.replace(/-/g, " ")}</span>
+        <p>{getThreadPreview(thread)}</p>
+        <span className="thread-stage">{thread.currentStage.replace(/-/g, " ")}</span>
+      </button>
+      <button
+        className="thread-delete-button"
+        type="button"
+        aria-label={`Delete ${thread.title}`}
+        onClick={onDelete}
+      >
+        ×
+      </button>
     </div>
   );
 }
@@ -584,129 +573,6 @@ export default function HomePage() {
     });
   }
 
-  function renderThreadCard(thread: WorkspaceThread) {
-    const isActive = thread.id === activeThreadId;
-
-    return (
-      <div
-        key={thread.id}
-        className="thread-card"
-        data-active={isActive}
-        role="button"
-        tabIndex={0}
-        onClick={() => handleSelectThread(thread.id)}
-        onKeyDown={(event) => {
-          if (event.key === "Enter" || event.key === " ") {
-            event.preventDefault();
-            handleSelectThread(thread.id);
-          }
-        }}
-      >
-        <div className="thread-card-top">
-          <strong>{thread.title}</strong>
-          <div className="thread-card-actions">
-            <span>{formatTimestamp(thread.updatedAt)}</span>
-            <button
-              className="thread-delete-button"
-              type="button"
-              aria-label={`Delete ${thread.title}`}
-              onClick={(event) => {
-                event.stopPropagation();
-                handleDeleteThread(thread.id);
-              }}
-            >
-              ×
-            </button>
-          </div>
-        </div>
-        <p>{getThreadPreview(thread)}</p>
-        <span className="thread-stage">{thread.currentStage.replace(/-/g, " ")}</span>
-      </div>
-    );
-  }
-
-  const entryHeading = selectedEntry ? `${selectedEntry.label} · ${formatTimestamp(selectedEntry.createdAt)}` : "Assistant Response";
-  const entryMeta = selectedEntry
-    ? selectedEntry.kind === "assistant-feedback"
-      ? "Saved feedback snapshot from your workspace history."
-      : "Saved student draft snapshot. Use Load into editor to continue revising from here."
-    : "Your latest saved draft or assistant feedback will appear here.";
-  const threadCards = threads.map(renderThreadCard);
-  const threadEntries = activeThread?.entries ?? [];
-  const savedSnapshotCount = activeThread ? `${activeThread.entries.length} saved snapshots` : "0 saved snapshots";
-
-  function renderEntryTabs() {
-    if (!threadEntries.length) {
-      return null;
-    }
-
-    return (
-      <div className="entry-tabs" role="tablist" aria-label="Thread snapshots">
-        {threadEntries.map((entry) => (
-          <button
-            key={entry.id}
-            type="button"
-            className="entry-tab"
-            aria-pressed={selectedEntryId === entry.id}
-            onClick={() => setSelectedEntryId(entry.id)}
-          >
-            <span>{entry.label}</span>
-            <small>{entry.mode === "day-a" ? "Day A" : "Day B"}</small>
-          </button>
-        ))}
-      </div>
-    );
-  }
-
-  function renderThreadToolbar() {
-    return (
-      <div className="thread-toolbar">
-        <div>
-          <strong>{activeThread?.title ?? "Untitled draft"}</strong>
-          <p>
-            Autosaved in this browser. To sync across devices later, wire the same data model
-            into Postgres.
-          </p>
-        </div>
-        <span className="thread-toolbar-badge">{savedSnapshotCount}</span>
-      </div>
-    );
-  }
-
-  function renderSidebar() {
-    return (
-      <aside
-        id="thread-sidebar"
-        className="panel sidebar-panel"
-        data-open={isSidebarOpen}
-      >
-        <div className="sidebar-header">
-          <div>
-            <h2>Writing threads</h2>
-            <p>Local browser history for your essay cycles.</p>
-          </div>
-          <div className="sidebar-actions">
-            <button className="ghost-button" type="button" onClick={handleCreateThread}>
-              New thread
-            </button>
-            <button
-              className="icon-button"
-              type="button"
-              aria-label="Collapse thread sidebar"
-              onClick={() => setIsSidebarOpen(false)}
-            >
-              ←
-            </button>
-          </div>
-        </div>
-
-        <div className="sidebar-list" role="list">
-          {threadCards}
-        </div>
-      </aside>
-    );
-  }
-
   return (
     <main className="page-shell page-shell-wide">
       <section className="hero hero-wide">
@@ -752,6 +618,7 @@ export default function HomePage() {
                 ←
               </button>
             </div>
+          </div>
 
           <div className="sidebar-list" role="list">
             {threads.map((thread) => (
