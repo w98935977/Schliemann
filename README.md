@@ -1,6 +1,6 @@
 # Schliemann Writing Studio
 
-Single-page Next.js MVP for your Schliemann English-writing workflow. The app lets you paste an essay or rewrite, choose `Day A` or `Day B`, submit it to a server-side Gemini API route, and read the coaching response in the browser.
+Single-page Next.js MVP for your Schliemann English-writing workflow. The app lets you draft inside a thread-based workspace, choose `Day A` or `Day B`, submit to a server-side Gemini API route, and review saved snapshots in the browser.
 
 ## Features
 
