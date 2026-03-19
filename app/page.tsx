@@ -333,9 +333,11 @@ export default function HomePage() {
 
   const copy = modeCopy[mode];
   const phrases = useMemo(() => normalizePhraseInput(phrasesInput), [phrasesInput]);
-  const savedSnapshotCount = activeThread
-    ? `${activeThread.entries.length} saved snapshots`
-    : "0 saved snapshots";
+  const savedSnapshotCount = (() => {
+    const count = activeThread?.entries.length ?? 0;
+    const label = count === 1 ? "saved snapshot" : "saved snapshots";
+    return `${count} ${label}`;
+  })();
 
   function syncDraftToThread(nextDraft: Partial<WorkspaceThread["draft"]> & { mode?: TrainingMode }) {
     if (!activeThreadId) {
