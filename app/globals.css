@@ -16,8 +16,8 @@
   --radius-lg: 28px;
   --radius-md: 18px;
   --radius-sm: 12px;
-  --font-body: "Segoe UI", "Noto Sans", sans-serif;
-  --font-display: Georgia, "Times New Roman", serif;
+  --font-body: var(--font-lora), Georgia, "Times New Roman", serif;
+  --font-display: var(--font-lora), Georgia, "Times New Roman", serif;
 }
 
 * {
