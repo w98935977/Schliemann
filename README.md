@@ -18,6 +18,7 @@ Single-page Next.js MVP for your Schliemann English-writing workflow. The app le
 - Draft typing still autosaves in `localStorage` on the same browser.
 - Submitted thread snapshots can also be written to Postgres when `DATABASE_URL` is configured.
 - On a shared deployment with the same database, submitted feedback history can be loaded on another device.
+- For Vercel deployments, add `DATABASE_URL` in Project Settings → Environment Variables and redeploy; without that, the app stays in local-only mode.
 - The current MVP does not include user accounts yet, so a production multi-user deployment still needs auth / workspace scoping.
 
 ## Local setup

@@ -22,6 +22,15 @@ type ApiState = {
   loading: boolean;
 };
 
+type WorkspaceSource = "database" | "local";
+
+type AssistantBlock =
+  | { type: "heading"; content: string }
+  | { type: "ordered-list"; items: string[] }
+  | { type: "unordered-list"; items: string[] }
+  | { type: "paragraph"; content: string }
+  | { type: "divider" };
+
 type ThreadCardProps = {
   isActive: boolean;
   isDeletable: boolean;
@@ -64,15 +73,19 @@ function renderInlineMarkdown(text: string) {
   });
 }
 
-function renderAssistantOutput(output: string) {
+function stripInlineMarkdown(text: string) {
+  return text.replace(/\*\*([^*]+)\*\*/g, "$1").replace(/\*([^*]+)\*/g, "$1");
+}
+
+function parseAssistantOutput(output: string) {
   const normalized = output.replace(/\r\n/g, "\n").trim();
 
   if (!normalized) {
-    return null;
+    return [] as AssistantBlock[];
   }
 
   const lines = normalized.split("\n");
-  const blocks: ReactNode[] = [];
+  const blocks: AssistantBlock[] = [];
   let index = 0;
 
   while (index < lines.length) {
@@ -84,17 +97,13 @@ function renderAssistantOutput(output: string) {
     }
 
     if (line === "---") {
-      blocks.push(<hr key={`hr-${index}`} />);
+      blocks.push({ type: "divider" });
       index += 1;
       continue;
     }
 
     if (line.startsWith("## ")) {
-      blocks.push(
-        <h3 key={`heading-${index}`} className="response-heading">
-          {line.slice(3)}
-        </h3>
-      );
+      blocks.push({ type: "heading", content: line.slice(3) });
       index += 1;
       continue;
     }
@@ -107,13 +116,7 @@ function renderAssistantOutput(output: string) {
         index += 1;
       }
 
-      blocks.push(
-        <ol key={`ol-${index}`} className="response-list response-list-numbered">
-          {items.map((item, itemIndex) => (
-            <li key={`${item}-${itemIndex}`}>{renderInlineMarkdown(item)}</li>
-          ))}
-        </ol>
-      );
+      blocks.push({ type: "ordered-list", items });
       continue;
     }
 
@@ -125,13 +128,7 @@ function renderAssistantOutput(output: string) {
         index += 1;
       }
 
-      blocks.push(
-        <ul key={`ul-${index}`} className="response-list">
-          {items.map((item, itemIndex) => (
-            <li key={`${item}-${itemIndex}`}>{renderInlineMarkdown(item)}</li>
-          ))}
-        </ul>
-      );
+      blocks.push({ type: "unordered-list", items });
       continue;
     }
 
@@ -154,14 +151,58 @@ function renderAssistantOutput(output: string) {
       index += 1;
     }
 
-    blocks.push(
-      <p key={`p-${index}`} className="response-paragraph">
-        {renderInlineMarkdown(paragraphLines.join(" "))}
-      </p>
-    );
+    blocks.push({ type: "paragraph", content: paragraphLines.join(" ") });
   }
 
   return blocks;
+}
+
+function renderAssistantOutput(output: string) {
+  const blocks = parseAssistantOutput(output);
+
+  if (blocks.length === 0) {
+    return null;
+  }
+
+  return blocks.map((block, index) => {
+    if (block.type === "divider") {
+      return <hr key={`hr-${index}`} />;
+    }
+
+    if (block.type === "heading") {
+      return (
+        <h3 key={`heading-${index}`} className="response-heading">
+          {block.content}
+        </h3>
+      );
+    }
+
+    if (block.type === "ordered-list") {
+      return (
+        <ol key={`ol-${index}`} className="response-list response-list-numbered">
+          {block.items.map((item, itemIndex) => (
+            <li key={`${item}-${itemIndex}`}>{renderInlineMarkdown(item)}</li>
+          ))}
+        </ol>
+      );
+    }
+
+    if (block.type === "unordered-list") {
+      return (
+        <ul key={`ul-${index}`} className="response-list">
+          {block.items.map((item, itemIndex) => (
+            <li key={`${item}-${itemIndex}`}>{renderInlineMarkdown(item)}</li>
+          ))}
+        </ul>
+      );
+    }
+
+    return (
+      <p key={`p-${index}`} className="response-paragraph">
+        {renderInlineMarkdown(block.content)}
+      </p>
+    );
+  });
 }
 
 function ThreadCardButton({ isActive, isDeletable, onDelete, onSelect, thread }: ThreadCardProps) {
@@ -316,7 +357,10 @@ async function loadWorkspaceFromServer() {
       return null;
     }
 
-    return data.source === "database" ? sortThreads(data.threads ?? []) : null;
+    return {
+      source: data.source ?? "local",
+      threads: data.source === "database" ? sortThreads(data.threads ?? []) : []
+    };
   } catch {
     return null;
   }
@@ -365,6 +409,7 @@ async function deleteThreadFromServer(threadId: string) {
 export default function HomePage() {
   const [workspaceReady, setWorkspaceReady] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [workspaceSource, setWorkspaceSource] = useState<WorkspaceSource>("local");
   const [threads, setThreads] = useState<WorkspaceThread[]>([]);
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
   const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null);
@@ -378,11 +423,11 @@ export default function HomePage() {
     let isCancelled = false;
 
     async function initializeWorkspace() {
-      const syncedThreads = await loadWorkspaceFromServer();
+      const syncedWorkspace = await loadWorkspaceFromServer();
       const storedThreads = parseStoredThreads();
       const nextThreads =
-        syncedThreads && syncedThreads.length > 0
-          ? syncedThreads
+        syncedWorkspace && syncedWorkspace.threads.length > 0
+          ? syncedWorkspace.threads
           : storedThreads.length > 0
             ? storedThreads
             : [createHiddenPlaceholderThread()];
@@ -392,6 +437,7 @@ export default function HomePage() {
         return;
       }
 
+      setWorkspaceSource(syncedWorkspace?.source ?? "local");
       setThreads(nextThreads);
       setActiveThreadId(initialThread?.id ?? null);
       setSelectedEntryId(initialThread?.entries.at(-1)?.id ?? null);
@@ -510,9 +556,10 @@ export default function HomePage() {
     const fallbackThread = remainingThreads[0] ?? createHiddenPlaceholderThread();
     const nextThreads = remainingThreads.length > 0 ? sortThreads(remainingThreads) : [fallbackThread];
 
-    setThreads(nextThreads);
+      setThreads(nextThreads);
+      setWorkspaceSource("local");
 
-    if (activeThreadId === threadId) {
+      if (activeThreadId === threadId) {
       setActiveThreadId(fallbackThread.id);
       setSelectedEntryId(fallbackThread.entries.at(-1)?.id ?? null);
       setMode(fallbackThread.draft.mode);
@@ -655,7 +702,8 @@ export default function HomePage() {
         ]);
       });
 
-      await persistThreadToServer(nextThread);
+      const persisted = await persistThreadToServer(nextThread);
+      setWorkspaceSource(persisted ? "database" : "local");
 
       setSelectedEntryId(assistantEntry.id);
       setActiveThreadId(threadId);
@@ -677,16 +725,23 @@ export default function HomePage() {
   }
 
   function renderThreadToolbar() {
+    const syncCopy =
+      workspaceSource === "database"
+        ? "Shared database sync is on. Submitted snapshots should be visible on another device connected to the same deployed app and database."
+        : "You are in local-only mode right now. On Vercel, add DATABASE_URL in Project Settings → Environment Variables and redeploy to enable cross-device submitted-history sync.";
+
     return (
       <div className="thread-toolbar">
         <div>
           <strong>{activeThread?.title ?? "Untitled draft"}</strong>
-          <p>
-            Draft typing still autosaves in this browser, and every submitted feedback snapshot is
-            written to the shared workspace when `DATABASE_URL` is configured.
-          </p>
+          <p>{syncCopy}</p>
         </div>
-        <span className="thread-toolbar-badge">{savedSnapshotCount}</span>
+        <div className="thread-toolbar-status">
+          <span className="thread-toolbar-badge">{savedSnapshotCount}</span>
+          <span className="thread-stage">
+            {workspaceSource === "database" ? "Shared sync on" : "Local only"}
+          </span>
+        </div>
       </div>
     );
   }
@@ -701,30 +756,92 @@ export default function HomePage() {
       unit: "pt",
       format: "a4"
     });
+    const blocks = parseAssistantOutput(entry.content);
     const pageWidth = document.internal.pageSize.getWidth();
     const pageHeight = document.internal.pageSize.getHeight();
     const margin = 40;
     const maxWidth = pageWidth - margin * 2;
     const title = `${entry.label} · ${formatTimestamp(entry.createdAt)}`;
-    const lines = document.splitTextToSize(entry.content.replace(/\r\n/g, "\n"), maxWidth);
     let cursorY = margin;
+    const lineHeight = 16;
 
-    document.setFont("helvetica", "bold");
-    document.setFontSize(16);
-    document.text(title, margin, cursorY);
-    cursorY += 28;
-
-    document.setFont("helvetica", "normal");
-    document.setFontSize(11);
-
-    for (const line of lines) {
-      if (cursorY > pageHeight - margin) {
-        document.addPage();
-        cursorY = margin;
+    const ensurePageSpace = (requiredHeight: number) => {
+      if (cursorY + requiredHeight <= pageHeight - margin) {
+        return;
       }
 
-      document.text(line, margin, cursorY);
-      cursorY += 16;
+      document.addPage();
+      cursorY = margin;
+    };
+
+    document.setFont("helvetica", "bold");
+    document.setFontSize(20);
+    document.text(title, margin, cursorY);
+    cursorY += 16;
+
+    document.setDrawColor(206, 185, 157);
+    document.line(margin, cursorY, pageWidth - margin, cursorY);
+    cursorY += 24;
+
+    for (const block of blocks) {
+      if (block.type === "divider") {
+        ensurePageSpace(20);
+        document.setDrawColor(222, 210, 190);
+        document.line(margin, cursorY, pageWidth - margin, cursorY);
+        cursorY += 20;
+        continue;
+      }
+
+      if (block.type === "heading") {
+        ensurePageSpace(24);
+        document.setFont("helvetica", "bold");
+        document.setTextColor(127, 57, 23);
+        document.setFontSize(14);
+        document.text(stripInlineMarkdown(block.content), margin, cursorY);
+        cursorY += 22;
+        continue;
+      }
+
+      if (block.type === "paragraph") {
+        const lines = document.splitTextToSize(stripInlineMarkdown(block.content), maxWidth);
+        ensurePageSpace(lines.length * lineHeight + 10);
+        document.setFont("helvetica", "normal");
+        document.setTextColor(31, 28, 24);
+        document.setFontSize(11);
+
+        for (const line of lines) {
+          document.text(line, margin, cursorY);
+          cursorY += lineHeight;
+        }
+
+        cursorY += 8;
+        continue;
+      }
+
+      const bulletWidth = maxWidth - 18;
+      const items = block.items.map((item, itemIndex) =>
+        block.type === "ordered-list"
+          ? `${itemIndex + 1}. ${stripInlineMarkdown(item)}`
+          : `• ${stripInlineMarkdown(item)}`
+      );
+
+      document.setFont("helvetica", "normal");
+      document.setTextColor(31, 28, 24);
+      document.setFontSize(11);
+
+      for (const item of items) {
+        const lines = document.splitTextToSize(item, bulletWidth);
+        ensurePageSpace(lines.length * lineHeight + 6);
+
+        for (const [lineIndex, line] of lines.entries()) {
+          document.text(line, margin + (lineIndex === 0 ? 0 : 12), cursorY);
+          cursorY += lineHeight;
+        }
+
+        cursorY += 4;
+      }
+
+      cursorY += 4;
     }
 
     document.save(`${entry.label.toLowerCase().replace(/\s+/g, "-")}.pdf`);
@@ -735,19 +852,103 @@ export default function HomePage() {
       return;
     }
 
-    const previousTitle = document.title;
-    const body = document.body;
-    body.classList.add("printing-feedback");
-    document.title = entry.label;
+    const printWindow = window.open("", "_blank", "noopener,noreferrer,width=900,height=1200");
 
-    const restore = () => {
-      body.classList.remove("printing-feedback");
-      document.title = previousTitle;
-      window.removeEventListener("afterprint", restore);
-    };
+    if (!printWindow) {
+      setApiState({
+        loading: false,
+        error: "The print window was blocked by your browser. Please allow pop-ups and try again."
+      });
+      return;
+    }
 
-    window.addEventListener("afterprint", restore);
-    window.print();
+    const blocks = parseAssistantOutput(entry.content);
+    const contentHtml = blocks
+      .map((block) => {
+        if (block.type === "divider") {
+          return "<hr />";
+        }
+
+        if (block.type === "heading") {
+          return `<h3>${stripInlineMarkdown(block.content)}</h3>`;
+        }
+
+        if (block.type === "paragraph") {
+          return `<p>${stripInlineMarkdown(block.content)}</p>`;
+        }
+
+        const items = block.items
+          .map((item) => `<li>${stripInlineMarkdown(item)}</li>`)
+          .join("");
+
+        return block.type === "ordered-list" ? `<ol>${items}</ol>` : `<ul>${items}</ul>`;
+      })
+      .join("");
+
+    const html = `<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>${entry.label}</title>
+    <style>
+      :root { color-scheme: light; }
+      body {
+        margin: 0;
+        padding: 40px 48px 56px;
+        font-family: "Segoe UI", "Noto Sans", sans-serif;
+        color: #1f1c18;
+        background: #ffffff;
+        line-height: 1.65;
+      }
+      h1 {
+        margin: 0 0 8px;
+        font-size: 2rem;
+      }
+      .meta {
+        margin: 0 0 24px;
+        color: #6f6558;
+        font-size: 0.95rem;
+      }
+      h3 {
+        margin: 24px 0 8px;
+        color: #7f3917;
+        font-size: 1.05rem;
+      }
+      p, li {
+        font-size: 1rem;
+      }
+      p, ol, ul {
+        margin: 0 0 14px;
+      }
+      ol, ul {
+        padding-left: 24px;
+      }
+      hr {
+        border: 0;
+        border-top: 1px solid #d9c9b6;
+        margin: 18px 0;
+      }
+      @page {
+        margin: 16mm;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>${entry.label}</h1>
+    <p class="meta">${formatTimestamp(entry.createdAt)}</p>
+    ${contentHtml}
+    <script>
+      window.addEventListener("load", () => {
+        window.print();
+        window.addEventListener("afterprint", () => window.close());
+      });
+    </script>
+  </body>
+</html>`;
+
+    printWindow.document.open();
+    printWindow.document.write(html);
+    printWindow.document.close();
   }
 
   function renderEntryTabs() {
