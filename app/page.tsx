@@ -662,20 +662,22 @@ export default function HomePage() {
       </section>
 
       <section className="workspace workspace-layout" data-sidebar-open={isSidebarOpen}>
-        <button
-          className="sidebar-toggle"
-          type="button"
-          data-open={isSidebarOpen}
-          aria-expanded={isSidebarOpen}
-          aria-controls="thread-sidebar"
-          aria-label={isSidebarOpen ? "Hide thread sidebar" : "Show thread sidebar"}
-          onClick={() => setIsSidebarOpen((currentValue) => !currentValue)}
-        >
-          <span aria-hidden="true">{isSidebarOpen ? "←" : "☰"}</span>
-          <span>{isSidebarOpen ? "Hide threads" : "Show threads"}</span>
-        </button>
+        <div className="workspace-sidebar-rail" data-open={isSidebarOpen}>
+          <button
+            className="sidebar-toggle"
+            type="button"
+            data-open={isSidebarOpen}
+            aria-expanded={isSidebarOpen}
+            aria-controls="thread-sidebar"
+            aria-label={isSidebarOpen ? "Hide thread sidebar" : "Show thread sidebar"}
+            onClick={() => setIsSidebarOpen((currentValue) => !currentValue)}
+          >
+            <span aria-hidden="true">{isSidebarOpen ? "←" : "☰"}</span>
+            <span>{isSidebarOpen ? "Hide threads" : "Show threads"}</span>
+          </button>
 
-        {renderSidebar()}
+          {renderSidebar()}
+        </div>
 
         <div className="workspace-main">
           <section className="panel form-panel">
