@@ -50,7 +50,8 @@ export async function GET() {
       return NextResponse.json({
         ok: true,
         source: "local",
-        threads: []
+        threads: [],
+        reason: "DATABASE_URL is not configured on this deployment."
       });
     }
 
@@ -81,7 +82,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         ok: true,
         persisted: false,
-        threadId: null
+        threadId: null,
+        reason: "DATABASE_URL is not configured on this deployment."
       });
     }
 
@@ -124,7 +126,8 @@ export async function DELETE(request: NextRequest) {
     if (!isDatabaseConfigured()) {
       return NextResponse.json({
         ok: true,
-        deleted: false
+        deleted: false,
+        reason: "DATABASE_URL is not configured on this deployment."
       });
     }
 

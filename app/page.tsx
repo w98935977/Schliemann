@@ -2,6 +2,7 @@
 
 import { Fragment, FormEvent, ReactNode, useEffect, useMemo, useState } from "react";
 import { modeCopy, normalizePhraseInput, type TrainingMode } from "@/lib/schliemann";
+import { loraFontBase64 } from "@/lib/pdf-fonts";
 import {
   createEmptyThread,
   createId,
@@ -49,7 +50,6 @@ type SelectedEntryPanelProps = {
   entry: WorkspaceEntry | null;
   onLoadDraft: (entry: WorkspaceEntry) => void;
   onExportPdf: (entry: WorkspaceEntry) => void;
-  onPrint: (entry: WorkspaceEntry) => void;
 };
 
 const initialApiState: ApiState = {
@@ -254,7 +254,7 @@ function EntryTabButton({ entry, isSelected, onSelect }: EntryTabButtonProps) {
   );
 }
 
-function SelectedEntryPanel({ entry, onLoadDraft, onExportPdf, onPrint }: SelectedEntryPanelProps) {
+function SelectedEntryPanel({ entry, onLoadDraft, onExportPdf }: SelectedEntryPanelProps) {
   const heading = entry ? `${entry.label} · ${formatTimestamp(entry.createdAt)}` : "Assistant Response";
   const meta = entry
     ? entry.kind === "assistant-feedback"
@@ -274,9 +274,6 @@ function SelectedEntryPanel({ entry, onLoadDraft, onExportPdf, onPrint }: Select
             <>
               <button className="ghost-button" type="button" onClick={() => onExportPdf(entry)}>
                 Export PDF
-              </button>
-              <button className="ghost-button" type="button" onClick={() => onPrint(entry)}>
-                Print
               </button>
             </>
           ) : null}
@@ -351,6 +348,7 @@ async function loadWorkspaceFromServer() {
       ok: boolean;
       source?: "database" | "local";
       threads?: WorkspaceThread[];
+      reason?: string;
     };
 
     if (!response.ok || !data.ok) {
@@ -359,10 +357,15 @@ async function loadWorkspaceFromServer() {
 
     return {
       source: data.source ?? "local",
-      threads: data.source === "database" ? sortThreads(data.threads ?? []) : []
+      threads: data.source === "database" ? sortThreads(data.threads ?? []) : [],
+      reason: data.reason ?? ""
     };
   } catch {
-    return null;
+    return {
+      source: "local" as const,
+      threads: [] as WorkspaceThread[],
+      reason: "Unable to check the shared workspace service right now."
+    };
   }
 }
 
@@ -379,13 +382,17 @@ async function persistThreadToServer(thread: WorkspaceThread) {
     ok: boolean;
     persisted?: boolean;
     error?: string;
+    reason?: string;
   };
 
   if (!response.ok || !data.ok) {
     throw new Error(data.error || "Unable to save this thread to the shared workspace.");
   }
 
-  return data.persisted ?? false;
+  return {
+    persisted: data.persisted ?? false,
+    reason: data.reason ?? ""
+  };
 }
 
 async function deleteThreadFromServer(threadId: string) {
@@ -406,10 +413,36 @@ async function deleteThreadFromServer(threadId: string) {
   return data.deleted ?? false;
 }
 
+function registerPdfFont(
+  document: {
+    addFileToVFS: (fileName: string, fileData: string) => void;
+    addFont: (postScriptName: string, family: string, style: "normal" | "bold") => void;
+  },
+  fileName: string,
+  family: string,
+  style: "normal" | "bold"
+) {
+  document.addFileToVFS(fileName, loraFontBase64);
+  document.addFont(fileName, family, style);
+}
+
+function formatPdfFilename(entry: WorkspaceEntry) {
+  const baseName = entry.label.replace(/\s+/g, "-");
+  const dateSegment = new Intl.DateTimeFormat("en", {
+    month: "short",
+    day: "numeric"
+  })
+    .format(new Date(entry.createdAt))
+    .replace(/\s+/g, "-");
+
+  return `${baseName}-${dateSegment}`;
+}
+
 export default function HomePage() {
   const [workspaceReady, setWorkspaceReady] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [workspaceSource, setWorkspaceSource] = useState<WorkspaceSource>("local");
+  const [workspaceStatusMessage, setWorkspaceStatusMessage] = useState("");
   const [threads, setThreads] = useState<WorkspaceThread[]>([]);
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
   const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null);
@@ -438,6 +471,7 @@ export default function HomePage() {
       }
 
       setWorkspaceSource(syncedWorkspace?.source ?? "local");
+      setWorkspaceStatusMessage(syncedWorkspace?.reason ?? "");
       setThreads(nextThreads);
       setActiveThreadId(initialThread?.id ?? null);
       setSelectedEntryId(initialThread?.entries.at(-1)?.id ?? null);
@@ -558,6 +592,7 @@ export default function HomePage() {
 
       setThreads(nextThreads);
       setWorkspaceSource("local");
+      setWorkspaceStatusMessage("This thread was removed locally. Shared sync will update only when the deployment has a working DATABASE_URL.");
 
       if (activeThreadId === threadId) {
       setActiveThreadId(fallbackThread.id);
@@ -702,8 +737,9 @@ export default function HomePage() {
         ]);
       });
 
-      const persisted = await persistThreadToServer(nextThread);
-      setWorkspaceSource(persisted ? "database" : "local");
+      const persistenceResult = await persistThreadToServer(nextThread);
+      setWorkspaceSource(persistenceResult.persisted ? "database" : "local");
+      setWorkspaceStatusMessage(persistenceResult.reason);
 
       setSelectedEntryId(assistantEntry.id);
       setActiveThreadId(threadId);
@@ -728,7 +764,8 @@ export default function HomePage() {
     const syncCopy =
       workspaceSource === "database"
         ? "Shared database sync is on. Submitted snapshots should be visible on another device connected to the same deployed app and database."
-        : "You are in local-only mode right now. On Vercel, add DATABASE_URL in Project Settings → Environment Variables and redeploy to enable cross-device submitted-history sync.";
+        : workspaceStatusMessage ||
+          "You are in local-only mode right now. On Vercel, add DATABASE_URL in Project Settings → Environment Variables and redeploy to enable cross-device submitted-history sync.";
 
     return (
       <div className="thread-toolbar">
@@ -751,204 +788,112 @@ export default function HomePage() {
       return;
     }
 
-    const { jsPDF } = await import("jspdf");
-    const document = new jsPDF({
-      unit: "pt",
-      format: "a4"
-    });
-    const blocks = parseAssistantOutput(entry.content);
-    const pageWidth = document.internal.pageSize.getWidth();
-    const pageHeight = document.internal.pageSize.getHeight();
-    const margin = 40;
-    const maxWidth = pageWidth - margin * 2;
-    const title = `${entry.label} · ${formatTimestamp(entry.createdAt)}`;
-    let cursorY = margin;
-    const lineHeight = 16;
-
-    const ensurePageSpace = (requiredHeight: number) => {
-      if (cursorY + requiredHeight <= pageHeight - margin) {
-        return;
-      }
-
-      document.addPage();
-      cursorY = margin;
-    };
-
-    document.setFont("helvetica", "bold");
-    document.setFontSize(20);
-    document.text(title, margin, cursorY);
-    cursorY += 16;
-
-    document.setDrawColor(206, 185, 157);
-    document.line(margin, cursorY, pageWidth - margin, cursorY);
-    cursorY += 24;
-
-    for (const block of blocks) {
-      if (block.type === "divider") {
-        ensurePageSpace(20);
-        document.setDrawColor(222, 210, 190);
-        document.line(margin, cursorY, pageWidth - margin, cursorY);
-        cursorY += 20;
-        continue;
-      }
-
-      if (block.type === "heading") {
-        ensurePageSpace(24);
-        document.setFont("helvetica", "bold");
-        document.setTextColor(127, 57, 23);
-        document.setFontSize(14);
-        document.text(stripInlineMarkdown(block.content), margin, cursorY);
-        cursorY += 22;
-        continue;
-      }
-
-      if (block.type === "paragraph") {
-        const lines = document.splitTextToSize(stripInlineMarkdown(block.content), maxWidth);
-        ensurePageSpace(lines.length * lineHeight + 10);
-        document.setFont("helvetica", "normal");
-        document.setTextColor(31, 28, 24);
-        document.setFontSize(11);
-
-        for (const line of lines) {
-          document.text(line, margin, cursorY);
-          cursorY += lineHeight;
-        }
-
-        cursorY += 8;
-        continue;
-      }
-
-      const bulletWidth = maxWidth - 18;
-      const items = block.items.map((item, itemIndex) =>
-        block.type === "ordered-list"
-          ? `${itemIndex + 1}. ${stripInlineMarkdown(item)}`
-          : `• ${stripInlineMarkdown(item)}`
-      );
-
-      document.setFont("helvetica", "normal");
-      document.setTextColor(31, 28, 24);
-      document.setFontSize(11);
-
-      for (const item of items) {
-        const lines = document.splitTextToSize(item, bulletWidth);
-        ensurePageSpace(lines.length * lineHeight + 6);
-
-        for (const [lineIndex, line] of lines.entries()) {
-          document.text(line, margin + (lineIndex === 0 ? 0 : 12), cursorY);
-          cursorY += lineHeight;
-        }
-
-        cursorY += 4;
-      }
-
-      cursorY += 4;
-    }
-
-    document.save(`${entry.label.toLowerCase().replace(/\s+/g, "-")}.pdf`);
-  }
-
-  function handlePrint(entry: WorkspaceEntry) {
-    if (entry.kind !== "assistant-feedback") {
-      return;
-    }
-
-    const printWindow = window.open("", "_blank", "noopener,noreferrer,width=900,height=1200");
-
-    if (!printWindow) {
-      setApiState({
-        loading: false,
-        error: "The print window was blocked by your browser. Please allow pop-ups and try again."
+    try {
+      const { jsPDF } = await import("jspdf");
+      const document = new jsPDF({
+        unit: "pt",
+        format: "a4"
       });
-      return;
-    }
+      registerPdfFont(document, "Lora-Regular.ttf", "Lora", "normal");
+      registerPdfFont(document, "Lora-Bold.ttf", "Lora", "bold");
 
-    const blocks = parseAssistantOutput(entry.content);
-    const contentHtml = blocks
-      .map((block) => {
+      const blocks = parseAssistantOutput(entry.content);
+      const pageWidth = document.internal.pageSize.getWidth();
+      const pageHeight = document.internal.pageSize.getHeight();
+      const margin = 40;
+      const maxWidth = pageWidth - margin * 2;
+      const title = `${entry.label} · ${formatTimestamp(entry.createdAt)}`;
+      let cursorY = margin;
+      const lineHeight = 18;
+
+      const ensurePageSpace = (requiredHeight: number) => {
+        if (cursorY + requiredHeight <= pageHeight - margin) {
+          return;
+        }
+
+        document.addPage();
+        cursorY = margin;
+      };
+
+      document.setFont("Lora", "bold");
+      document.setTextColor(31, 28, 24);
+      document.setFontSize(20);
+      document.text(title, margin, cursorY);
+      cursorY += 16;
+
+      document.setDrawColor(206, 185, 157);
+      document.line(margin, cursorY, pageWidth - margin, cursorY);
+      cursorY += 24;
+
+      for (const block of blocks) {
         if (block.type === "divider") {
-          return "<hr />";
+          ensurePageSpace(20);
+          document.setDrawColor(222, 210, 190);
+          document.line(margin, cursorY, pageWidth - margin, cursorY);
+          cursorY += 20;
+          continue;
         }
 
         if (block.type === "heading") {
-          return `<h3>${stripInlineMarkdown(block.content)}</h3>`;
+          ensurePageSpace(24);
+          document.setFont("Lora", "bold");
+          document.setTextColor(127, 57, 23);
+          document.setFontSize(14);
+          document.text(stripInlineMarkdown(block.content), margin, cursorY);
+          cursorY += 22;
+          continue;
         }
 
         if (block.type === "paragraph") {
-          return `<p>${stripInlineMarkdown(block.content)}</p>`;
+          const lines = document.splitTextToSize(stripInlineMarkdown(block.content), maxWidth);
+          ensurePageSpace(lines.length * lineHeight + 12);
+          document.setFont("Lora", "normal");
+          document.setTextColor(31, 28, 24);
+          document.setFontSize(12);
+
+          for (const line of lines) {
+            document.text(line, margin, cursorY);
+            cursorY += lineHeight;
+          }
+
+          cursorY += 10;
+          continue;
         }
 
-        const items = block.items
-          .map((item) => `<li>${stripInlineMarkdown(item)}</li>`)
-          .join("");
+        const bulletWidth = maxWidth - 18;
+        const items = block.items.map((item, itemIndex) =>
+          block.type === "ordered-list"
+            ? `${itemIndex + 1}. ${stripInlineMarkdown(item)}`
+            : `• ${stripInlineMarkdown(item)}`
+        );
 
-        return block.type === "ordered-list" ? `<ol>${items}</ol>` : `<ul>${items}</ul>`;
-      })
-      .join("");
+        document.setFont("Lora", "normal");
+        document.setTextColor(31, 28, 24);
+        document.setFontSize(12);
 
-    const html = `<!doctype html>
-<html>
-  <head>
-    <meta charset="utf-8" />
-    <title>${entry.label}</title>
-    <style>
-      :root { color-scheme: light; }
-      body {
-        margin: 0;
-        padding: 40px 48px 56px;
-        font-family: "Segoe UI", "Noto Sans", sans-serif;
-        color: #1f1c18;
-        background: #ffffff;
-        line-height: 1.65;
+        for (const item of items) {
+          const lines = document.splitTextToSize(item, bulletWidth);
+          ensurePageSpace(lines.length * lineHeight + 8);
+
+          for (const [lineIndex, line] of lines.entries()) {
+            document.text(line, margin + (lineIndex === 0 ? 0 : 12), cursorY);
+            cursorY += lineHeight;
+          }
+
+          cursorY += 4;
+        }
+
+        cursorY += 6;
       }
-      h1 {
-        margin: 0 0 8px;
-        font-size: 2rem;
-      }
-      .meta {
-        margin: 0 0 24px;
-        color: #6f6558;
-        font-size: 0.95rem;
-      }
-      h3 {
-        margin: 24px 0 8px;
-        color: #7f3917;
-        font-size: 1.05rem;
-      }
-      p, li {
-        font-size: 1rem;
-      }
-      p, ol, ul {
-        margin: 0 0 14px;
-      }
-      ol, ul {
-        padding-left: 24px;
-      }
-      hr {
-        border: 0;
-        border-top: 1px solid #d9c9b6;
-        margin: 18px 0;
-      }
-      @page {
-        margin: 16mm;
-      }
-    </style>
-  </head>
-  <body>
-    <h1>${entry.label}</h1>
-    <p class="meta">${formatTimestamp(entry.createdAt)}</p>
-    ${contentHtml}
-    <script>
-      window.addEventListener("load", () => {
-        window.print();
-        window.addEventListener("afterprint", () => window.close());
+
+      document.save(`${formatPdfFilename(entry)}.pdf`);
+    } catch (error) {
+      setApiState({
+        loading: false,
+        error:
+          error instanceof Error ? error.message : "Unable to export this feedback as a PDF right now."
       });
-    </script>
-  </body>
-</html>`;
-
-    printWindow.document.open();
-    printWindow.document.write(html);
-    printWindow.document.close();
+    }
   }
 
   function renderEntryTabs() {
@@ -1153,7 +1098,6 @@ export default function HomePage() {
             entry={selectedEntry}
             onLoadDraft={handleLoadDraft}
             onExportPdf={handleExportPdf}
-            onPrint={handlePrint}
           />
         </div>
       </section>

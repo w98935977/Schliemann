@@ -51,6 +51,18 @@ npm run dev
 - `GEMINI_MODEL`: optional, defaults to `gemini-2.5-flash`
 - `DATABASE_URL`: optional Postgres connection string for shared submitted-thread persistence
 
+## Vercel setup for cross-device sync
+
+If you want submissions to appear on another device, you need the deployed app to talk to the same Postgres database.
+
+1. In Vercel, open **Storage** and create a Postgres provider such as **Neon** or **Supabase**.
+2. Copy the Postgres connection string into **Project Settings → Environment Variables** as `DATABASE_URL`.
+3. Redeploy the project so the serverless functions pick up the new variable.
+4. Submit one essay from the deployed app. The API will automatically create the `schliemann_threads` table on first use.
+5. Open the same deployed URL on another device and confirm the toolbar says **Shared sync on** instead of **Local only**.
+
+If the toolbar still says **Local only**, the deployment is not seeing a valid `DATABASE_URL` yet.
+
 ## API contract
 
 `POST /api/review`
