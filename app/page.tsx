@@ -162,7 +162,6 @@ function renderAssistantOutput(output: string) {
   return blocks;
 }
 
-<<<<<<< codex/check-project-status-if7m0m
 function ThreadCardButton({ isActive, isDeletable, onDelete, onSelect, thread }: ThreadCardProps) {
   return (
     <div
@@ -205,12 +204,7 @@ function ThreadCardButton({ isActive, isDeletable, onDelete, onSelect, thread }:
 
 function EntryTabButton({ entry, isSelected, onSelect }: EntryTabButtonProps) {
   return (
-    <button
-      type="button"
-      className="entry-tab"
-      aria-pressed={isSelected}
-      onClick={onSelect}
-    >
+    <button type="button" className="entry-tab" aria-pressed={isSelected} onClick={onSelect}>
       <span>{entry.label}</span>
       <small>{entry.mode === "day-a" ? "Day A" : "Day B"}</small>
     </button>
@@ -218,9 +212,7 @@ function EntryTabButton({ entry, isSelected, onSelect }: EntryTabButtonProps) {
 }
 
 function SelectedEntryPanel({ entry, onLoadDraft }: SelectedEntryPanelProps) {
-  const heading = entry
-    ? `${entry.label} · ${formatTimestamp(entry.createdAt)}`
-    : "Assistant Response";
+  const heading = entry ? `${entry.label} · ${formatTimestamp(entry.createdAt)}` : "Assistant Response";
   const meta = entry
     ? entry.kind === "assistant-feedback"
       ? "Saved feedback snapshot from your workspace history."
@@ -270,8 +262,6 @@ function SelectedEntryPanel({ entry, onLoadDraft }: SelectedEntryPanelProps) {
   );
 }
 
-=======
->>>>>>> main
 function parseStoredThreads() {
   if (typeof window === "undefined") {
     return [] as WorkspaceThread[];
@@ -291,13 +281,10 @@ function parseStoredThreads() {
   }
 }
 
-<<<<<<< codex/check-project-status-if7m0m
 function createHiddenPlaceholderThread() {
   return createEmptyThread({ isPlaceholder: true });
 }
 
-=======
->>>>>>> main
 export default function HomePage() {
   const [workspaceReady, setWorkspaceReady] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -312,11 +299,7 @@ export default function HomePage() {
 
   useEffect(() => {
     const storedThreads = parseStoredThreads();
-<<<<<<< codex/check-project-status-if7m0m
     const nextThreads = storedThreads.length > 0 ? storedThreads : [createHiddenPlaceholderThread()];
-=======
-    const nextThreads = storedThreads.length > 0 ? storedThreads : [createEmptyThread()];
->>>>>>> main
     const initialThread = nextThreads[0];
 
     setThreads(nextThreads);
@@ -341,29 +324,17 @@ export default function HomePage() {
     () => threads.find((thread) => thread.id === activeThreadId) ?? null,
     [threads, activeThreadId]
   );
-<<<<<<< codex/check-project-status-if7m0m
-  const visibleThreads = useMemo(
-    () => threads.filter((thread) => !thread.isPlaceholder),
-    [threads]
-  );
-=======
->>>>>>> main
-
+  const visibleThreads = useMemo(() => threads.filter((thread) => !thread.isPlaceholder), [threads]);
   const selectedEntry = useMemo(
     () => activeThread?.entries.find((entry) => entry.id === selectedEntryId) ?? null,
     [activeThread, selectedEntryId]
   );
 
-<<<<<<< codex/check-project-status-if7m0m
   const copy = modeCopy[mode];
   const phrases = useMemo(() => normalizePhraseInput(phrasesInput), [phrasesInput]);
   const savedSnapshotCount = activeThread
     ? `${activeThread.entries.length} saved snapshots`
     : "0 saved snapshots";
-=======
-  const phrases = useMemo(() => normalizePhraseInput(phrasesInput), [phrasesInput]);
-  const copy = modeCopy[mode];
->>>>>>> main
 
   function syncDraftToThread(nextDraft: Partial<WorkspaceThread["draft"]> & { mode?: TrainingMode }) {
     if (!activeThreadId) {
@@ -379,10 +350,7 @@ export default function HomePage() {
 
           return {
             ...thread,
-<<<<<<< codex/check-project-status-if7m0m
             isPlaceholder: false,
-=======
->>>>>>> main
             title: summarizeThreadTitle(nextDraft.essay ?? thread.draft.essay),
             updatedAt: new Date().toISOString(),
             draft: {
@@ -442,15 +410,8 @@ export default function HomePage() {
     }
 
     const remainingThreads = threads.filter((item) => item.id !== threadId);
-<<<<<<< codex/check-project-status-if7m0m
-    const fallbackThread =
-      remainingThreads[0] ?? createHiddenPlaceholderThread();
+    const fallbackThread = remainingThreads[0] ?? createHiddenPlaceholderThread();
     const nextThreads = remainingThreads.length > 0 ? sortThreads(remainingThreads) : [fallbackThread];
-=======
-    const fallbackThread = remainingThreads[0] ?? createEmptyThread();
-    const nextThreads =
-      remainingThreads.length > 0 ? sortThreads(remainingThreads) : [fallbackThread];
->>>>>>> main
 
     setThreads(nextThreads);
 
@@ -469,7 +430,6 @@ export default function HomePage() {
     setMode(nextMode);
     syncDraftToThread({ mode: nextMode });
   }
-<<<<<<< codex/check-project-status-if7m0m
 
   function handleLoadDraft(entry: WorkspaceEntry) {
     if (entry.kind !== "student-draft") {
@@ -484,8 +444,6 @@ export default function HomePage() {
       mode: entry.mode
     });
   }
-=======
->>>>>>> main
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -505,10 +463,7 @@ export default function HomePage() {
     if (!activeThread) {
       const nextThread = createEmptyThread();
       nextThread.id = threadId;
-<<<<<<< codex/check-project-status-if7m0m
       nextThread.isPlaceholder = false;
-=======
->>>>>>> main
       nextThread.title = summarizeThreadTitle(trimmedEssay);
       nextThread.draft = {
         mode,
@@ -573,7 +528,6 @@ export default function HomePage() {
       setThreads((currentThreads) => {
         const existingThread = currentThreads.find((thread) => thread.id === threadId);
         const baseThread = existingThread ?? createEmptyThread();
-<<<<<<< codex/check-project-status-if7m0m
 
         return sortThreads([
           {
@@ -592,40 +546,12 @@ export default function HomePage() {
               lastSavedAt: now
             }
           },
-=======
-        const nextEntries = [...baseThread.entries, userEntry, assistantEntry];
-        const nextTitle = summarizeThreadTitle(trimmedEssay);
-
-        const updatedThread: WorkspaceThread = {
-          ...baseThread,
-          id: threadId,
-          title: nextTitle,
-          updatedAt: now,
-          currentStage: getStageFromMode(mode, "assistant-feedback"),
-          entries: nextEntries,
-          draft: {
-            mode: mode === "day-a" ? "day-b" : mode,
-            essay: "",
-            phrasesInput,
-            keywords,
-            lastSavedAt: now
-          }
-        };
-
-        return sortThreads([
-          updatedThread,
->>>>>>> main
           ...currentThreads.filter((thread) => thread.id !== threadId)
         ]);
       });
 
-<<<<<<< codex/check-project-status-if7m0m
       setSelectedEntryId(assistantEntry.id);
       setActiveThreadId(threadId);
-=======
-      setActiveThreadId(threadId);
-      setSelectedEntryId(assistantEntry.id);
->>>>>>> main
       setMode(mode === "day-a" ? "day-b" : mode);
       setEssay("");
       setApiState({
@@ -643,94 +569,6 @@ export default function HomePage() {
     }
   }
 
-  function handleLoadEntryIntoEditor(entry: WorkspaceEntry) {
-    if (entry.kind !== "student-draft") {
-      return;
-    }
-
-    setMode(entry.mode);
-    setEssay(entry.content);
-    setSelectedEntryId(entry.id);
-    syncDraftToThread({
-      mode: entry.mode,
-      essay: entry.content
-    });
-  }
-
-  function renderThreadCard(thread: WorkspaceThread) {
-    const isActive = thread.id === activeThreadId;
-
-    return (
-      <div
-        key={thread.id}
-        className="thread-card"
-        data-active={isActive}
-        role="button"
-        tabIndex={0}
-        onClick={() => handleSelectThread(thread.id)}
-        onKeyDown={(event) => {
-          if (event.key === "Enter" || event.key === " ") {
-            event.preventDefault();
-            handleSelectThread(thread.id);
-          }
-        }}
-      >
-        <div className="thread-card-top">
-          <strong>{thread.title}</strong>
-          <div className="thread-card-actions">
-            <span>{formatTimestamp(thread.updatedAt)}</span>
-            <button
-              className="thread-delete-button"
-              type="button"
-              aria-label={`Delete ${thread.title}`}
-              onClick={(event) => {
-                event.stopPropagation();
-                handleDeleteThread(thread.id);
-              }}
-            >
-              ×
-            </button>
-          </div>
-        </div>
-        <p>{getThreadPreview(thread)}</p>
-        <span className="thread-stage">{thread.currentStage.replace(/-/g, " ")}</span>
-      </div>
-    );
-  }
-
-  const entryHeading = selectedEntry ? `${selectedEntry.label} · ${formatTimestamp(selectedEntry.createdAt)}` : "Assistant Response";
-  const entryMeta = selectedEntry
-    ? selectedEntry.kind === "assistant-feedback"
-      ? "Saved feedback snapshot from your workspace history."
-      : "Saved student draft snapshot. Use Load into editor to continue revising from here."
-    : "Your latest saved draft or assistant feedback will appear here.";
-  const threadCards = threads.map(renderThreadCard);
-  const threadEntries = activeThread?.entries ?? [];
-  const savedSnapshotCount = activeThread ? `${activeThread.entries.length} saved snapshots` : "0 saved snapshots";
-
-  function renderEntryTabs() {
-    if (!threadEntries.length) {
-      return null;
-    }
-
-    return (
-      <div className="entry-tabs" role="tablist" aria-label="Thread snapshots">
-        {threadEntries.map((entry) => (
-          <button
-            key={entry.id}
-            type="button"
-            className="entry-tab"
-            aria-pressed={selectedEntryId === entry.id}
-            onClick={() => setSelectedEntryId(entry.id)}
-          >
-            <span>{entry.label}</span>
-            <small>{entry.mode === "day-a" ? "Day A" : "Day B"}</small>
-          </button>
-        ))}
-      </div>
-    );
-  }
-
   function renderThreadToolbar() {
     return (
       <div className="thread-toolbar">
@@ -746,56 +584,27 @@ export default function HomePage() {
     );
   }
 
-  function renderSidebar() {
-    return (
-      <aside
-        id="thread-sidebar"
-        className="panel sidebar-panel"
-        data-open={isSidebarOpen}
-      >
-        <div className="sidebar-header">
-          <div>
-            <h2>Writing threads</h2>
-            <p>Local browser history for your essay cycles.</p>
-          </div>
-          <div className="sidebar-actions">
-            <button className="ghost-button" type="button" onClick={handleCreateThread}>
-              New thread
-            </button>
-            <button
-              className="icon-button"
-              type="button"
-              aria-label="Collapse thread sidebar"
-              onClick={() => setIsSidebarOpen(false)}
-            >
-              ←
-            </button>
-          </div>
-        </div>
+  function renderEntryTabs() {
+    if (!activeThread?.entries.length) {
+      return null;
+    }
 
-        <div className="sidebar-list" role="list">
-          {threadCards}
-        </div>
-      </aside>
+    return (
+      <div className="entry-tabs" role="tablist" aria-label="Thread snapshots">
+        {activeThread.entries.map((entry) => (
+          <EntryTabButton
+            key={entry.id}
+            entry={entry}
+            isSelected={selectedEntryId === entry.id}
+            onSelect={() => setSelectedEntryId(entry.id)}
+          />
+        ))}
+      </div>
     );
   }
 
-  return (
-<<<<<<< codex/check-project-status-if7m0m
-    <main className="page-shell">
-      <button
-        className="sidebar-toggle"
-        type="button"
-        data-open={isSidebarOpen}
-        aria-expanded={isSidebarOpen}
-        aria-controls="thread-sidebar"
-        aria-label={isSidebarOpen ? "Hide thread sidebar" : "Show thread sidebar"}
-        onClick={() => setIsSidebarOpen((currentValue) => !currentValue)}
-      >
-        <span aria-hidden="true">{isSidebarOpen ? "←" : "☰"}</span>
-        <span>{isSidebarOpen ? "Hide threads" : "Show threads"}</span>
-      </button>
-
+  function renderSidebar() {
+    return (
       <aside id="thread-sidebar" className="panel sidebar-panel" data-open={isSidebarOpen}>
         <div className="sidebar-header">
           <div>
@@ -837,12 +646,12 @@ export default function HomePage() {
           )}
         </div>
       </aside>
+    );
+  }
 
-      <section className="hero">
-=======
+  return (
     <main className="page-shell page-shell-wide">
       <section className="hero hero-wide">
->>>>>>> main
         <span className="eyebrow">Schliemann Cycle</span>
         <h1>Train your English writing inside one focused workspace.</h1>
         <p>
@@ -852,14 +661,7 @@ export default function HomePage() {
         </p>
       </section>
 
-<<<<<<< codex/check-project-status-if7m0m
-      <section className="workspace">
-        <section className="panel form-panel">
-=======
-      <section
-        className="workspace workspace-layout"
-        data-sidebar-open={isSidebarOpen}
-      >
+      <section className="workspace workspace-layout" data-sidebar-open={isSidebarOpen}>
         <button
           className="sidebar-toggle"
           type="button"
@@ -877,7 +679,6 @@ export default function HomePage() {
 
         <div className="workspace-main">
           <section className="panel form-panel">
->>>>>>> main
             <div className="panel-header panel-header-stacked">
               <div className="panel-header-copy">
                 <h2>{copy.title}</h2>
@@ -904,36 +705,9 @@ export default function HomePage() {
               </div>
             </div>
 
-<<<<<<< codex/check-project-status-if7m0m
-            <div className="thread-toolbar">
-              <div>
-                <strong>{activeThread?.title ?? "Untitled draft"}</strong>
-                <p>
-                  Autosaved in this browser. To sync across devices later, wire the same data
-                  model into Postgres.
-                </p>
-              </div>
-              <span className="thread-toolbar-badge">{savedSnapshotCount}</span>
-            </div>
-
-            {activeThread?.entries.length ? (
-              <div className="entry-tabs" role="tablist" aria-label="Thread snapshots">
-                {activeThread.entries.map((entry) => (
-                  <EntryTabButton
-                    key={entry.id}
-                    entry={entry}
-                    isSelected={selectedEntryId === entry.id}
-                    onSelect={() => setSelectedEntryId(entry.id)}
-                  />
-                ))}
-              </div>
-            ) : null}
-
-=======
             {renderThreadToolbar()}
             {renderEntryTabs()}
 
->>>>>>> main
             <form className="form-grid" onSubmit={handleSubmit}>
               <div className="field">
                 <label htmlFor="essay">{copy.essayLabel}</label>
@@ -952,85 +726,6 @@ export default function HomePage() {
                   Autosaves to this browser as you type. Submit still requires a non-empty essay.
                 </p>
               </div>
-<<<<<<< codex/check-project-status-if7m0m
-
-              <div className="field-row">
-                <div className="field">
-                  <label htmlFor="phrases">Phrases / collocations</label>
-                  <textarea
-                    id="phrases"
-                    name="phrases"
-                    placeholder="due to, in advance, take responsibility for"
-                    value={phrasesInput}
-                    onChange={(event) => {
-                      const nextValue = event.target.value;
-                      setPhrasesInput(nextValue);
-                      syncDraftToThread({ phrasesInput: nextValue });
-                    }}
-                  />
-                  <p className="field-help">
-                    {copy.phrasesHelp} Current count: <strong>{phrases.length}</strong>
-                  </p>
-                </div>
-
-                <div className="field">
-                  <label htmlFor="keywords">Keywords / topic</label>
-                  <textarea
-                    id="keywords"
-                    name="keywords"
-                    placeholder="Optional notes, focus areas, or topic hints"
-                    value={keywords}
-                    onChange={(event) => {
-                      const nextValue = event.target.value;
-                      setKeywords(nextValue);
-                      syncDraftToThread({ keywords: nextValue });
-                    }}
-                  />
-                  <p className="field-help">{copy.keywordsHelp}</p>
-                </div>
-              </div>
-
-              {apiState.error ? <div className="message error">{apiState.error}</div> : null}
-
-              {!apiState.error && !apiState.loading && selectedEntry?.kind === "assistant-feedback" ? (
-                <div className="message success">
-                  Latest assistant feedback is saved in this browser. Pick any thread on the left to
-                  revisit older cycles.
-                </div>
-              ) : null}
-
-              <div className="actions">
-                <button className="submit-button" type="submit" disabled={apiState.loading || !workspaceReady}>
-                  {apiState.loading ? "Submitting..." : "Submit to Schliemann"}
-                </button>
-              </div>
-            </form>
-        </section>
-      </section>
-
-      <SelectedEntryPanel entry={selectedEntry} onLoadDraft={handleLoadDraft} />
-=======
-              <span className="thread-toolbar-badge">
-                {activeThread ? `${activeThread.entries.length} saved snapshots` : "0 saved snapshots"}
-              </span>
-            </div>
-
-            {activeThread?.entries.length ? (
-              <div className="entry-tabs" role="tablist" aria-label="Thread snapshots">
-                {activeThread.entries.map((entry) => (
-                  <button
-                    key={entry.id}
-                    type="button"
-                    className="entry-tab"
-                    aria-pressed={selectedEntryId === entry.id}
-                    onClick={() => setSelectedEntryId(entry.id)}
-                  >
-                    <span>{entry.label}</span>
-                    <small>{entry.mode === "day-a" ? "Day A" : "Day B"}</small>
-                  </button>
-                ))}
-              </div>
-            ) : null}
 
               <div className="field-row">
                 <div className="field">
@@ -1085,50 +780,9 @@ export default function HomePage() {
             </form>
           </section>
 
-          <section className="panel result-card">
-            <div className="result-card-header">
-              <div>
-                <h2>{entryHeading}</h2>
-                <p className="result-meta">{entryMeta}</p>
-              </div>
-              {selectedEntry?.kind === "student-draft" ? (
-                <button
-                  className="ghost-button"
-                  type="button"
-                  onClick={() => handleLoadEntryIntoEditor(selectedEntry)}
-                >
-                  Load into editor
-                </button>
-              ) : null}
-            </div>
-
-            {selectedEntry ? (
-              selectedEntry.kind === "assistant-feedback" ? (
-                <div className="response-content">{renderAssistantOutput(selectedEntry.content)}</div>
-              ) : (
-                <div className="student-entry-card">
-                  <div className="student-entry-meta">
-                    <span className="thread-stage">{selectedEntry.mode === "day-a" ? "Day A draft" : "Day B rewrite"}</span>
-                    <span>{formatTimestamp(selectedEntry.createdAt)}</span>
-                  </div>
-                  <pre>{selectedEntry.content}</pre>
-                </div>
-              )
-            ) : (
-              <div className="empty-state">
-                <div>
-                  <strong>No saved snapshot yet</strong>
-                  <p>
-                    Submit your current draft to save both the student version and the assistant
-                    response into this browser-side workspace history.
-                  </p>
-                </div>
-              </div>
-            )}
-          </section>
+          <SelectedEntryPanel entry={selectedEntry} onLoadDraft={handleLoadDraft} />
         </div>
       </section>
->>>>>>> main
     </main>
   );
 }
