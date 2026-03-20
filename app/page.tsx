@@ -39,6 +39,8 @@ type EntryTabButtonProps = {
 type SelectedEntryPanelProps = {
   entry: WorkspaceEntry | null;
   onLoadDraft: (entry: WorkspaceEntry) => void;
+  onExportPdf: (entry: WorkspaceEntry) => void;
+  onPrint: (entry: WorkspaceEntry) => void;
 };
 
 const initialApiState: ApiState = {
@@ -211,7 +213,7 @@ function EntryTabButton({ entry, isSelected, onSelect }: EntryTabButtonProps) {
   );
 }
 
-function SelectedEntryPanel({ entry, onLoadDraft }: SelectedEntryPanelProps) {
+function SelectedEntryPanel({ entry, onLoadDraft, onExportPdf, onPrint }: SelectedEntryPanelProps) {
   const heading = entry ? `${entry.label} · ${formatTimestamp(entry.createdAt)}` : "Assistant Response";
   const meta = entry
     ? entry.kind === "assistant-feedback"
@@ -226,11 +228,23 @@ function SelectedEntryPanel({ entry, onLoadDraft }: SelectedEntryPanelProps) {
           <h2>{heading}</h2>
           <p className="result-meta">{meta}</p>
         </div>
-        {entry?.kind === "student-draft" ? (
-          <button className="ghost-button" type="button" onClick={() => onLoadDraft(entry)}>
-            Load into editor
-          </button>
-        ) : null}
+        <div className="result-card-actions">
+          {entry?.kind === "assistant-feedback" ? (
+            <>
+              <button className="ghost-button" type="button" onClick={() => onExportPdf(entry)}>
+                Export PDF
+              </button>
+              <button className="ghost-button" type="button" onClick={() => onPrint(entry)}>
+                Print
+              </button>
+            </>
+          ) : null}
+          {entry?.kind === "student-draft" ? (
+            <button className="ghost-button" type="button" onClick={() => onLoadDraft(entry)}>
+              Load into editor
+            </button>
+          ) : null}
+        </div>
       </div>
 
       {entry ? (
@@ -285,6 +299,69 @@ function createHiddenPlaceholderThread() {
   return createEmptyThread({ isPlaceholder: true });
 }
 
+async function loadWorkspaceFromServer() {
+  try {
+    const response = await fetch("/api/workspace", {
+      method: "GET",
+      cache: "no-store"
+    });
+
+    const data = (await response.json()) as {
+      ok: boolean;
+      source?: "database" | "local";
+      threads?: WorkspaceThread[];
+    };
+
+    if (!response.ok || !data.ok) {
+      return null;
+    }
+
+    return data.source === "database" ? sortThreads(data.threads ?? []) : null;
+  } catch {
+    return null;
+  }
+}
+
+async function persistThreadToServer(thread: WorkspaceThread) {
+  const response = await fetch("/api/workspace", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ thread })
+  });
+
+  const data = (await response.json()) as {
+    ok: boolean;
+    persisted?: boolean;
+    error?: string;
+  };
+
+  if (!response.ok || !data.ok) {
+    throw new Error(data.error || "Unable to save this thread to the shared workspace.");
+  }
+
+  return data.persisted ?? false;
+}
+
+async function deleteThreadFromServer(threadId: string) {
+  const response = await fetch(`/api/workspace?threadId=${encodeURIComponent(threadId)}`, {
+    method: "DELETE"
+  });
+
+  const data = (await response.json()) as {
+    ok: boolean;
+    deleted?: boolean;
+    error?: string;
+  };
+
+  if (!response.ok || !data.ok) {
+    throw new Error(data.error || "Unable to delete this thread from the shared workspace.");
+  }
+
+  return data.deleted ?? false;
+}
+
 export default function HomePage() {
   const [workspaceReady, setWorkspaceReady] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -298,18 +375,38 @@ export default function HomePage() {
   const [apiState, setApiState] = useState<ApiState>(initialApiState);
 
   useEffect(() => {
-    const storedThreads = parseStoredThreads();
-    const nextThreads = storedThreads.length > 0 ? storedThreads : [createHiddenPlaceholderThread()];
-    const initialThread = nextThreads[0];
+    let isCancelled = false;
 
-    setThreads(nextThreads);
-    setActiveThreadId(initialThread?.id ?? null);
-    setSelectedEntryId(initialThread?.entries.at(-1)?.id ?? null);
-    setMode(initialThread?.draft.mode ?? "day-a");
-    setEssay(initialThread?.draft.essay ?? "");
-    setPhrasesInput(initialThread?.draft.phrasesInput ?? "");
-    setKeywords(initialThread?.draft.keywords ?? "");
-    setWorkspaceReady(true);
+    async function initializeWorkspace() {
+      const syncedThreads = await loadWorkspaceFromServer();
+      const storedThreads = parseStoredThreads();
+      const nextThreads =
+        syncedThreads && syncedThreads.length > 0
+          ? syncedThreads
+          : storedThreads.length > 0
+            ? storedThreads
+            : [createHiddenPlaceholderThread()];
+      const initialThread = nextThreads[0];
+
+      if (isCancelled) {
+        return;
+      }
+
+      setThreads(nextThreads);
+      setActiveThreadId(initialThread?.id ?? null);
+      setSelectedEntryId(initialThread?.entries.at(-1)?.id ?? null);
+      setMode(initialThread?.draft.mode ?? "day-a");
+      setEssay(initialThread?.draft.essay ?? "");
+      setPhrasesInput(initialThread?.draft.phrasesInput ?? "");
+      setKeywords(initialThread?.draft.keywords ?? "");
+      setWorkspaceReady(true);
+    }
+
+    void initializeWorkspace();
+
+    return () => {
+      isCancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -424,6 +521,13 @@ export default function HomePage() {
       setKeywords(fallbackThread.draft.keywords);
       setApiState(initialApiState);
     }
+
+    void deleteThreadFromServer(threadId).catch((error) => {
+      setApiState({
+        loading: false,
+        error: error instanceof Error ? error.message : "Deleted locally but failed to sync delete."
+      });
+    });
   }
 
   function handleModeChange(nextMode: TrainingMode) {
@@ -525,30 +629,33 @@ export default function HomePage() {
         createdAt: now
       };
 
-      setThreads((currentThreads) => {
-        const existingThread = currentThreads.find((thread) => thread.id === threadId);
-        const baseThread = existingThread ?? createEmptyThread();
+      const existingThread = threads.find((thread) => thread.id === threadId);
+      const baseThread = existingThread ?? createEmptyThread();
+      const nextThread: WorkspaceThread = {
+        ...baseThread,
+        id: threadId,
+        isPlaceholder: false,
+        title: summarizeThreadTitle(trimmedEssay),
+        updatedAt: now,
+        currentStage: getStageFromMode(mode, "assistant-feedback"),
+        entries: [...baseThread.entries, userEntry, assistantEntry],
+        draft: {
+          mode: mode === "day-a" ? "day-b" : mode,
+          essay: "",
+          phrasesInput,
+          keywords,
+          lastSavedAt: now
+        }
+      };
 
+      setThreads((currentThreads) => {
         return sortThreads([
-          {
-            ...baseThread,
-            id: threadId,
-            isPlaceholder: false,
-            title: summarizeThreadTitle(trimmedEssay),
-            updatedAt: now,
-            currentStage: getStageFromMode(mode, "assistant-feedback"),
-            entries: [...baseThread.entries, userEntry, assistantEntry],
-            draft: {
-              mode: mode === "day-a" ? "day-b" : mode,
-              essay: "",
-              phrasesInput,
-              keywords,
-              lastSavedAt: now
-            }
-          },
+          nextThread,
           ...currentThreads.filter((thread) => thread.id !== threadId)
         ]);
       });
+
+      await persistThreadToServer(nextThread);
 
       setSelectedEntryId(assistantEntry.id);
       setActiveThreadId(threadId);
@@ -575,13 +682,72 @@ export default function HomePage() {
         <div>
           <strong>{activeThread?.title ?? "Untitled draft"}</strong>
           <p>
-            Autosaved in this browser. To sync across devices later, wire the same data model
-            into Postgres.
+            Draft typing still autosaves in this browser, and every submitted feedback snapshot is
+            written to the shared workspace when `DATABASE_URL` is configured.
           </p>
         </div>
         <span className="thread-toolbar-badge">{savedSnapshotCount}</span>
       </div>
     );
+  }
+
+  async function handleExportPdf(entry: WorkspaceEntry) {
+    if (entry.kind !== "assistant-feedback") {
+      return;
+    }
+
+    const { jsPDF } = await import("jspdf");
+    const document = new jsPDF({
+      unit: "pt",
+      format: "a4"
+    });
+    const pageWidth = document.internal.pageSize.getWidth();
+    const pageHeight = document.internal.pageSize.getHeight();
+    const margin = 40;
+    const maxWidth = pageWidth - margin * 2;
+    const title = `${entry.label} · ${formatTimestamp(entry.createdAt)}`;
+    const lines = document.splitTextToSize(entry.content.replace(/\r\n/g, "\n"), maxWidth);
+    let cursorY = margin;
+
+    document.setFont("helvetica", "bold");
+    document.setFontSize(16);
+    document.text(title, margin, cursorY);
+    cursorY += 28;
+
+    document.setFont("helvetica", "normal");
+    document.setFontSize(11);
+
+    for (const line of lines) {
+      if (cursorY > pageHeight - margin) {
+        document.addPage();
+        cursorY = margin;
+      }
+
+      document.text(line, margin, cursorY);
+      cursorY += 16;
+    }
+
+    document.save(`${entry.label.toLowerCase().replace(/\s+/g, "-")}.pdf`);
+  }
+
+  function handlePrint(entry: WorkspaceEntry) {
+    if (entry.kind !== "assistant-feedback") {
+      return;
+    }
+
+    const previousTitle = document.title;
+    const body = document.body;
+    body.classList.add("printing-feedback");
+    document.title = entry.label;
+
+    const restore = () => {
+      body.classList.remove("printing-feedback");
+      document.title = previousTitle;
+      window.removeEventListener("afterprint", restore);
+    };
+
+    window.addEventListener("afterprint", restore);
+    window.print();
   }
 
   function renderEntryTabs() {
@@ -662,20 +828,22 @@ export default function HomePage() {
       </section>
 
       <section className="workspace workspace-layout" data-sidebar-open={isSidebarOpen}>
-        <button
-          className="sidebar-toggle"
-          type="button"
-          data-open={isSidebarOpen}
-          aria-expanded={isSidebarOpen}
-          aria-controls="thread-sidebar"
-          aria-label={isSidebarOpen ? "Hide thread sidebar" : "Show thread sidebar"}
-          onClick={() => setIsSidebarOpen((currentValue) => !currentValue)}
-        >
-          <span aria-hidden="true">{isSidebarOpen ? "←" : "☰"}</span>
-          <span>{isSidebarOpen ? "Hide threads" : "Show threads"}</span>
-        </button>
+        <div className="workspace-sidebar-rail" data-open={isSidebarOpen}>
+          <button
+            className="sidebar-toggle"
+            type="button"
+            data-open={isSidebarOpen}
+            aria-expanded={isSidebarOpen}
+            aria-controls="thread-sidebar"
+            aria-label={isSidebarOpen ? "Hide thread sidebar" : "Show thread sidebar"}
+            onClick={() => setIsSidebarOpen((currentValue) => !currentValue)}
+          >
+            <span aria-hidden="true">{isSidebarOpen ? "←" : "☰"}</span>
+            <span>{isSidebarOpen ? "Hide threads" : "Show threads"}</span>
+          </button>
 
-        {renderSidebar()}
+          {renderSidebar()}
+        </div>
 
         <div className="workspace-main">
           <section className="panel form-panel">
@@ -780,7 +948,12 @@ export default function HomePage() {
             </form>
           </section>
 
-          <SelectedEntryPanel entry={selectedEntry} onLoadDraft={handleLoadDraft} />
+          <SelectedEntryPanel
+            entry={selectedEntry}
+            onLoadDraft={handleLoadDraft}
+            onExportPdf={handleExportPdf}
+            onPrint={handlePrint}
+          />
         </div>
       </section>
     </main>
