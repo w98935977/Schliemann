@@ -15,10 +15,11 @@ Single-page Next.js MVP for your Schliemann English-writing workflow. The app le
 
 ## Current persistence model
 
-- Drafts, thread history, and feedback snapshots are currently stored in `localStorage` on the same browser.
-- Closing and reopening the browser on the same device keeps the data.
-- Switching devices or browsers does **not** sync the data yet.
-- The data model is intentionally shaped so the next step can be a Postgres-backed thread store.
+- Draft typing still autosaves in `localStorage` on the same browser.
+- Submitted thread snapshots can also be written to Postgres when `DATABASE_URL` is configured.
+- On a shared deployment with the same database, submitted feedback history can be loaded on another device.
+- For Vercel deployments, add `DATABASE_URL` in Project Settings → Environment Variables and redeploy; without that, the app stays in local-only mode.
+- The current MVP does not include user accounts yet, so a production multi-user deployment still needs auth / workspace scoping.
 
 ## Local setup
 
@@ -48,7 +49,7 @@ npm run dev
 
 - `GEMINI_API_KEY`: required for all server-side Gemini requests
 - `GEMINI_MODEL`: optional, defaults to `gemini-2.5-flash`
-- `DATABASE_URL`: optional placeholder for a future Postgres-backed workspace store
+- `DATABASE_URL`: optional Postgres connection string for shared submitted-thread persistence
 
 ## API contract
 
@@ -85,4 +86,4 @@ Failure response:
 
 - This repo uses Google's official `@google/genai` SDK with a single `generateContent` request per submission.
 - `gemini-2.5-flash` is the default model because it is fast and has a documented free tier on Google's pricing page.
-- The next persistence milestone is moving thread history from browser-local storage to a shared Postgres database for cross-device sync.
+- Postgres persistence now stores submitted thread snapshots, while in-progress draft typing still remains browser-local until you submit.
