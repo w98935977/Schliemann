@@ -251,7 +251,6 @@ function EntryTabButton({ entry, isSelected, onSelect }: EntryTabButtonProps) {
   return (
     <button type="button" className="entry-tab" aria-pressed={isSelected} onClick={onSelect}>
       <span>{entry.label}</span>
-      <small>{entry.mode === "day-a" ? "Day A" : "Day B"}</small>
     </button>
   );
 }

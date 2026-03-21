@@ -295,7 +295,6 @@ button {
 
 .thread-card-top span,
 .thread-stage,
-.entry-tab small,
 .thread-toolbar-badge {
   font-size: 0.78rem;
   color: var(--muted);
@@ -445,8 +444,11 @@ button {
   display: flex;
   gap: 10px;
   overflow-x: auto;
-  padding-bottom: 4px;
+  overflow-y: visible;
+  padding: 2px 0 6px;
   margin-bottom: 18px;
+  position: relative;
+  z-index: 2;
 }
 
 .entry-tab {
@@ -462,7 +464,8 @@ button {
   text-align: left;
   align-content: center;
   justify-items: start;
-  gap: 4px;
+  position: relative;
+  z-index: 1;
 }
 
 .entry-tab[aria-pressed="true"] {
@@ -470,21 +473,12 @@ button {
   border-color: rgba(174, 91, 47, 0.28);
 }
 
-.entry-tab span,
-.entry-tab small {
-  display: block;
-  line-height: 1.1;
-  pointer-events: none;
-}
-
 .entry-tab span {
+  display: block;
+  line-height: 1.15;
   font-weight: 700;
   color: var(--text);
-}
-
-.entry-tab small {
-  color: var(--muted);
-  font-size: 0.85rem;
+  pointer-events: none;
 }
 
 .form-grid {
