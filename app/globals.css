@@ -129,6 +129,12 @@ button {
   display: grid;
   gap: 14px;
   align-content: start;
+  pointer-events: none;
+}
+
+.sidebar-toggle,
+.sidebar-panel {
+  pointer-events: auto;
 }
 
 .sidebar-toggle {
