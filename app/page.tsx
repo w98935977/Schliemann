@@ -49,7 +49,6 @@ type EntryTabButtonProps = {
 type SelectedEntryPanelProps = {
   entry: WorkspaceEntry | null;
   onLoadDraft: (entry: WorkspaceEntry) => void;
-  onOpenEditor: () => void;
   onExportPdf: (entry: WorkspaceEntry) => void;
 };
 
@@ -210,54 +209,6 @@ function getDisplayThreadTitle(thread: WorkspaceThread) {
   return thread.title === "Untitled draft" ? formatTimestamp(thread.createdAt) : thread.title;
 }
 
-function renderAssistantOutput(output: string) {
-  const blocks = parseAssistantOutput(output);
-
-  if (blocks.length === 0) {
-    return null;
-  }
-
-  return blocks.map((block, index) => {
-    if (block.type === "divider") {
-      return <hr key={`hr-${index}`} />;
-    }
-
-    if (block.type === "heading") {
-      return (
-        <h3 key={`heading-${index}`} className="response-heading">
-          {block.content}
-        </h3>
-      );
-    }
-
-    if (block.type === "ordered-list") {
-      return (
-        <ol key={`ol-${index}`} className="response-list response-list-numbered">
-          {block.items.map((item, itemIndex) => (
-            <li key={`${item}-${itemIndex}`}>{renderInlineMarkdown(item)}</li>
-          ))}
-        </ol>
-      );
-    }
-
-    if (block.type === "unordered-list") {
-      return (
-        <ul key={`ul-${index}`} className="response-list">
-          {block.items.map((item, itemIndex) => (
-            <li key={`${item}-${itemIndex}`}>{renderInlineMarkdown(item)}</li>
-          ))}
-        </ul>
-      );
-    }
-
-    return (
-      <p key={`p-${index}`} className="response-paragraph">
-        {renderInlineMarkdown(block.content)}
-      </p>
-    );
-  });
-}
-
 function ThreadCardButton({ isActive, isDeletable, onDelete, onSelect, thread }: ThreadCardProps) {
   return (
     <div
@@ -309,7 +260,6 @@ function EntryTabButton({ entry, isSelected, onSelect }: EntryTabButtonProps) {
 function SelectedEntryPanel({
   entry,
   onLoadDraft,
-  onOpenEditor,
   onExportPdf
 }: SelectedEntryPanelProps) {
   const heading = entry ? `${entry.label} · ${formatTimestamp(entry.createdAt)}` : "Assistant Response";
@@ -328,14 +278,9 @@ function SelectedEntryPanel({
         </div>
         <div className="result-card-actions">
           {entry?.kind === "assistant-feedback" ? (
-            <>
-              <button className="ghost-button" type="button" onClick={onOpenEditor}>
-                Open editor
-              </button>
               <button className="ghost-button" type="button" onClick={() => onExportPdf(entry)}>
                 Export PDF
               </button>
-            </>
           ) : null}
           {entry?.kind === "student-draft" ? (
             <button className="ghost-button" type="button" onClick={() => onLoadDraft(entry)}>
@@ -498,6 +443,18 @@ function formatPdfFilename(entry: WorkspaceEntry) {
   return `${baseName}-${dateSegment}`;
 }
 
+function getPreferredEntryId(entries: WorkspaceEntry[], mode: TrainingMode) {
+  const latestDraft = [...entries].reverse().find(
+    (entry) => entry.mode === mode && entry.kind === "student-draft"
+  );
+
+  if (latestDraft) {
+    return latestDraft.id;
+  }
+
+  return [...entries].reverse().find((entry) => entry.mode === mode)?.id ?? null;
+}
+
 export default function HomePage() {
   const [workspaceReady, setWorkspaceReady] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -535,9 +492,9 @@ export default function HomePage() {
       setWorkspaceStatusMessage(syncedWorkspace?.reason ?? "");
       setThreads(nextThreads);
       setActiveThreadId(initialThread?.id ?? null);
-      setSelectedEntryId(initialThread?.entries.at(-1)?.id ?? null);
+      setSelectedEntryId(getPreferredEntryId(initialThread?.entries ?? [], initialThread?.draft.mode ?? "day-a"));
       setMode(initialThread?.draft.mode ?? "day-a");
-      setIsEditorVisible(Boolean(initialThread?.draft.essay) || (initialThread?.entries.length ?? 0) === 0);
+      setIsEditorVisible(true);
       setEssay(initialThread?.draft.essay ?? "");
       setPhrasesInput(initialThread?.draft.phrasesInput ?? "");
       setKeywords(initialThread?.draft.keywords ?? "");
@@ -587,7 +544,7 @@ export default function HomePage() {
     }
 
     if (!matchingEntries.some((entry) => entry.id === selectedEntryId)) {
-      setSelectedEntryId(matchingEntries.at(-1)?.id ?? null);
+      setSelectedEntryId(getPreferredEntryId(matchingEntries, mode));
     }
   }, [activeThread, mode, selectedEntryId]);
 
@@ -633,9 +590,9 @@ export default function HomePage() {
     }
 
     setActiveThreadId(thread.id);
-    setSelectedEntryId(thread.entries.at(-1)?.id ?? null);
+    setSelectedEntryId(getPreferredEntryId(thread.entries, thread.draft.mode));
     setMode(thread.draft.mode);
-    setIsEditorVisible(Boolean(thread.draft.essay) || thread.entries.length === 0);
+    setIsEditorVisible(true);
     setEssay(thread.draft.essay);
     setPhrasesInput(thread.draft.phrasesInput);
     setKeywords(thread.draft.keywords);
@@ -682,9 +639,9 @@ export default function HomePage() {
 
       if (activeThreadId === threadId) {
       setActiveThreadId(fallbackThread.id);
-      setSelectedEntryId(fallbackThread.entries.at(-1)?.id ?? null);
+      setSelectedEntryId(getPreferredEntryId(fallbackThread.entries, fallbackThread.draft.mode));
       setMode(fallbackThread.draft.mode);
-      setIsEditorVisible(Boolean(fallbackThread.draft.essay) || fallbackThread.entries.length === 0);
+      setIsEditorVisible(true);
       setEssay(fallbackThread.draft.essay);
       setPhrasesInput(fallbackThread.draft.phrasesInput);
       setKeywords(fallbackThread.draft.keywords);
@@ -813,8 +770,8 @@ export default function HomePage() {
         draft: {
           mode: mode === "day-a" ? "day-b" : mode,
           essay: "",
-          phrasesInput,
-          keywords,
+          phrasesInput: "",
+          keywords: "",
           lastSavedAt: now
         }
       };
@@ -830,11 +787,13 @@ export default function HomePage() {
       setWorkspaceSource(persistenceResult.persisted ? "database" : "local");
       setWorkspaceStatusMessage(persistenceResult.reason);
 
-      setSelectedEntryId(assistantEntry.id);
+      setSelectedEntryId(userEntry.id);
       setActiveThreadId(threadId);
       setMode(mode);
-      setIsEditorVisible(false);
+      setIsEditorVisible(true);
       setEssay("");
+      setPhrasesInput("");
+      setKeywords("");
       setApiState({
         loading: false,
         error: ""
@@ -994,7 +953,14 @@ export default function HomePage() {
             key={entry.id}
             entry={entry}
             isSelected={selectedEntryId === entry.id}
-            onSelect={() => setSelectedEntryId(entry.id)}
+            onSelect={() => {
+              if (entry.kind === "student-draft") {
+                handleLoadDraft(entry);
+                return;
+              }
+
+              setSelectedEntryId(entry.id);
+            }}
           />
         ))}
       </div>
@@ -1180,7 +1146,6 @@ export default function HomePage() {
           <SelectedEntryPanel
             entry={selectedEntry}
             onLoadDraft={handleLoadDraft}
-            onOpenEditor={() => setIsEditorVisible(true)}
             onExportPdf={handleExportPdf}
           />
         </div>
