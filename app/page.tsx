@@ -49,6 +49,7 @@ type EntryTabButtonProps = {
 type SelectedEntryPanelProps = {
   entry: WorkspaceEntry | null;
   onLoadDraft: (entry: WorkspaceEntry) => void;
+  onOpenEditor: () => void;
   onExportPdf: (entry: WorkspaceEntry) => void;
 };
 
@@ -205,6 +206,58 @@ function renderAssistantOutput(output: string) {
   });
 }
 
+function getDisplayThreadTitle(thread: WorkspaceThread) {
+  return thread.title === "Untitled draft" ? formatTimestamp(thread.createdAt) : thread.title;
+}
+
+function renderAssistantOutput(output: string) {
+  const blocks = parseAssistantOutput(output);
+
+  if (blocks.length === 0) {
+    return null;
+  }
+
+  return blocks.map((block, index) => {
+    if (block.type === "divider") {
+      return <hr key={`hr-${index}`} />;
+    }
+
+    if (block.type === "heading") {
+      return (
+        <h3 key={`heading-${index}`} className="response-heading">
+          {block.content}
+        </h3>
+      );
+    }
+
+    if (block.type === "ordered-list") {
+      return (
+        <ol key={`ol-${index}`} className="response-list response-list-numbered">
+          {block.items.map((item, itemIndex) => (
+            <li key={`${item}-${itemIndex}`}>{renderInlineMarkdown(item)}</li>
+          ))}
+        </ol>
+      );
+    }
+
+    if (block.type === "unordered-list") {
+      return (
+        <ul key={`ul-${index}`} className="response-list">
+          {block.items.map((item, itemIndex) => (
+            <li key={`${item}-${itemIndex}`}>{renderInlineMarkdown(item)}</li>
+          ))}
+        </ul>
+      );
+    }
+
+    return (
+      <p key={`p-${index}`} className="response-paragraph">
+        {renderInlineMarkdown(block.content)}
+      </p>
+    );
+  });
+}
+
 function ThreadCardButton({ isActive, isDeletable, onDelete, onSelect, thread }: ThreadCardProps) {
   return (
     <div
@@ -221,9 +274,8 @@ function ThreadCardButton({ isActive, isDeletable, onDelete, onSelect, thread }:
       }}
     >
       <div className="thread-card-top">
-        <strong>{thread.title}</strong>
+        <strong>{getDisplayThreadTitle(thread)}</strong>
         <div className="thread-card-actions">
-          <span>{formatTimestamp(thread.updatedAt)}</span>
           {isDeletable ? (
             <button
               className="thread-delete-button"
@@ -254,7 +306,12 @@ function EntryTabButton({ entry, isSelected, onSelect }: EntryTabButtonProps) {
   );
 }
 
-function SelectedEntryPanel({ entry, onLoadDraft, onExportPdf }: SelectedEntryPanelProps) {
+function SelectedEntryPanel({
+  entry,
+  onLoadDraft,
+  onOpenEditor,
+  onExportPdf
+}: SelectedEntryPanelProps) {
   const heading = entry ? `${entry.label} · ${formatTimestamp(entry.createdAt)}` : "Assistant Response";
   const meta = entry
     ? entry.kind === "assistant-feedback"
@@ -272,6 +329,9 @@ function SelectedEntryPanel({ entry, onLoadDraft, onExportPdf }: SelectedEntryPa
         <div className="result-card-actions">
           {entry?.kind === "assistant-feedback" ? (
             <>
+              <button className="ghost-button" type="button" onClick={onOpenEditor}>
+                Open editor
+              </button>
               <button className="ghost-button" type="button" onClick={() => onExportPdf(entry)}>
                 Export PDF
               </button>
@@ -447,6 +507,7 @@ export default function HomePage() {
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
   const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null);
   const [mode, setMode] = useState<TrainingMode>("day-a");
+  const [isEditorVisible, setIsEditorVisible] = useState(true);
   const [essay, setEssay] = useState("");
   const [phrasesInput, setPhrasesInput] = useState("");
   const [keywords, setKeywords] = useState("");
@@ -476,6 +537,7 @@ export default function HomePage() {
       setActiveThreadId(initialThread?.id ?? null);
       setSelectedEntryId(initialThread?.entries.at(-1)?.id ?? null);
       setMode(initialThread?.draft.mode ?? "day-a");
+      setIsEditorVisible(Boolean(initialThread?.draft.essay) || (initialThread?.entries.length ?? 0) === 0);
       setEssay(initialThread?.draft.essay ?? "");
       setPhrasesInput(initialThread?.draft.phrasesInput ?? "");
       setKeywords(initialThread?.draft.keywords ?? "");
@@ -506,6 +568,28 @@ export default function HomePage() {
     () => activeThread?.entries.find((entry) => entry.id === selectedEntryId) ?? null,
     [activeThread, selectedEntryId]
   );
+  const modeEntries = useMemo(
+    () => activeThread?.entries.filter((entry) => entry.mode === mode) ?? [],
+    [activeThread, mode]
+  );
+
+  useEffect(() => {
+    if (!activeThread) {
+      return;
+    }
+
+    const matchingEntries = activeThread.entries.filter((entry) => entry.mode === mode);
+
+    if (matchingEntries.length === 0) {
+      setSelectedEntryId(null);
+      setIsEditorVisible(true);
+      return;
+    }
+
+    if (!matchingEntries.some((entry) => entry.id === selectedEntryId)) {
+      setSelectedEntryId(matchingEntries.at(-1)?.id ?? null);
+    }
+  }, [activeThread, mode, selectedEntryId]);
 
   const copy = modeCopy[mode];
   const phrases = useMemo(() => normalizePhraseInput(phrasesInput), [phrasesInput]);
@@ -528,7 +612,7 @@ export default function HomePage() {
           return {
             ...thread,
             isPlaceholder: false,
-            title: summarizeThreadTitle(nextDraft.essay ?? thread.draft.essay),
+            title: summarizeThreadTitle(nextDraft.essay ?? thread.draft.essay, thread.createdAt),
             updatedAt: new Date().toISOString(),
             draft: {
               ...thread.draft,
@@ -551,6 +635,7 @@ export default function HomePage() {
     setActiveThreadId(thread.id);
     setSelectedEntryId(thread.entries.at(-1)?.id ?? null);
     setMode(thread.draft.mode);
+    setIsEditorVisible(Boolean(thread.draft.essay) || thread.entries.length === 0);
     setEssay(thread.draft.essay);
     setPhrasesInput(thread.draft.phrasesInput);
     setKeywords(thread.draft.keywords);
@@ -565,6 +650,7 @@ export default function HomePage() {
     setSelectedEntryId(null);
     setIsSidebarOpen(true);
     setMode(nextThread.draft.mode);
+    setIsEditorVisible(true);
     setEssay("");
     setPhrasesInput("");
     setKeywords("");
@@ -579,7 +665,7 @@ export default function HomePage() {
     }
 
     const shouldDelete = window.confirm(
-      `Delete "${thread.title}" and all saved snapshots in this browser?`
+      `Delete "${getDisplayThreadTitle(thread)}" and all saved snapshots in this browser?`
     );
 
     if (!shouldDelete) {
@@ -598,6 +684,7 @@ export default function HomePage() {
       setActiveThreadId(fallbackThread.id);
       setSelectedEntryId(fallbackThread.entries.at(-1)?.id ?? null);
       setMode(fallbackThread.draft.mode);
+      setIsEditorVisible(Boolean(fallbackThread.draft.essay) || fallbackThread.entries.length === 0);
       setEssay(fallbackThread.draft.essay);
       setPhrasesInput(fallbackThread.draft.phrasesInput);
       setKeywords(fallbackThread.draft.keywords);
@@ -614,6 +701,7 @@ export default function HomePage() {
 
   function handleModeChange(nextMode: TrainingMode) {
     setMode(nextMode);
+    setIsEditorVisible(true);
     syncDraftToThread({ mode: nextMode });
   }
 
@@ -623,6 +711,7 @@ export default function HomePage() {
     }
 
     setMode(entry.mode);
+    setIsEditorVisible(true);
     setEssay(entry.content);
     setSelectedEntryId(entry.id);
     syncDraftToThread({
@@ -743,7 +832,8 @@ export default function HomePage() {
 
       setSelectedEntryId(assistantEntry.id);
       setActiveThreadId(threadId);
-      setMode(mode === "day-a" ? "day-b" : mode);
+      setMode(mode);
+      setIsEditorVisible(false);
       setEssay("");
       setApiState({
         loading: false,
@@ -770,14 +860,10 @@ export default function HomePage() {
     return (
       <div className="thread-toolbar">
         <div>
-          <strong>{activeThread?.title ?? "Untitled draft"}</strong>
-          <p>{syncCopy}</p>
-        </div>
-        <div className="thread-toolbar-status">
-          <span className="thread-toolbar-badge">{savedSnapshotCount}</span>
-          <span className="thread-stage">
-            {workspaceSource === "database" ? "Shared sync on" : "Local only"}
-          </span>
+          <strong>
+            {activeThread ? getDisplayThreadTitle(activeThread) : formatTimestamp(new Date().toISOString())}
+          </strong>
+          <p>Review each Schliemann cycle by switching between Day A and Day B snapshots.</p>
         </div>
       </div>
     );
@@ -897,13 +983,13 @@ export default function HomePage() {
   }
 
   function renderEntryTabs() {
-    if (!activeThread?.entries.length) {
+    if (!modeEntries.length) {
       return null;
     }
 
     return (
       <div className="entry-tabs" role="tablist" aria-label="Thread snapshots">
-        {activeThread.entries.map((entry) => (
+        {modeEntries.map((entry) => (
           <EntryTabButton
             key={entry.id}
             entry={entry}
@@ -921,7 +1007,7 @@ export default function HomePage() {
         <div className="sidebar-header">
           <div>
             <h2>Writing threads</h2>
-            <p>Local browser history for your essay cycles.</p>
+            <p>Track each Schliemann cycle from v1 draft to feedback and revision.</p>
           </div>
           <div className="sidebar-actions">
             <button className="ghost-button" type="button" onClick={handleCreateThread}>
@@ -967,9 +1053,9 @@ export default function HomePage() {
         <span className="eyebrow">Schliemann Cycle</span>
         <h1>Train your English writing inside one focused workspace.</h1>
         <p>
-          Your draft history now stays in this browser. The left rail works like a lightweight
-          writing thread list, while the main workspace keeps each thread&apos;s latest draft and
-          feedback snapshots together.
+          The Schliemann method turns one topic into a short learning cycle: write a Day A draft,
+          study targeted feedback, then return on Day B to rewrite with stronger phrasing and
+          clearer structure.
         </p>
       </section>
 
@@ -992,7 +1078,7 @@ export default function HomePage() {
         </div>
 
         <div className="workspace-main">
-          <section className="panel form-panel">
+          <section className="panel form-panel" data-hidden={!isEditorVisible}>
             <div className="panel-header panel-header-stacked">
               <div className="panel-header-copy">
                 <h2>{copy.title}</h2>
@@ -1036,9 +1122,6 @@ export default function HomePage() {
                     syncDraftToThread({ essay: nextValue });
                   }}
                 />
-                <p className="field-help">
-                  Autosaves to this browser as you type. Submit still requires a non-empty essay.
-                </p>
               </div>
 
               <div className="field-row">
@@ -1097,6 +1180,7 @@ export default function HomePage() {
           <SelectedEntryPanel
             entry={selectedEntry}
             onLoadDraft={handleLoadDraft}
+            onOpenEditor={() => setIsEditorVisible(true)}
             onExportPdf={handleExportPdf}
           />
         </div>

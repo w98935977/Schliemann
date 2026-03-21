@@ -361,6 +361,10 @@ button {
   padding: 28px;
 }
 
+.form-panel[data-hidden="true"] {
+  display: none;
+}
+
 .panel-header {
   display: flex;
   justify-content: space-between;
