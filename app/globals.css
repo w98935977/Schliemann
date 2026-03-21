@@ -446,6 +446,8 @@ button {
   gap: 10px;
   padding: 2px 0 6px;
   margin-bottom: 18px;
+  position: relative;
+  z-index: 2;
 }
 
 .entry-tab {
