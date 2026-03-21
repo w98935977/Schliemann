@@ -39,14 +39,14 @@ export function createId() {
     : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
-export function summarizeThreadTitle(essay: string) {
+export function summarizeThreadTitle(essay: string, fallbackValue?: string) {
   const firstLine = essay
     .split(/\r?\n/)
     .map((line) => line.trim())
     .find(Boolean);
 
   if (!firstLine) {
-    return "Untitled draft";
+    return formatTimestamp(fallbackValue ?? new Date().toISOString());
   }
 
   return firstLine.length > 48 ? `${firstLine.slice(0, 48).trimEnd()}…` : firstLine;
@@ -57,7 +57,7 @@ export function createEmptyThread(options?: { isPlaceholder?: boolean }): Worksp
 
   return {
     id: createId(),
-    title: "Untitled draft",
+    title: formatTimestamp(now),
     createdAt: now,
     updatedAt: now,
     currentStage: "draft-v1",

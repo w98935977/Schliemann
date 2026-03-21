@@ -2,6 +2,7 @@
 
 import { Fragment, FormEvent, ReactNode, useEffect, useMemo, useState } from "react";
 import { modeCopy, normalizePhraseInput, type TrainingMode } from "@/lib/schliemann";
+import { loraFontBase64 } from "@/lib/pdf-fonts";
 import {
   createEmptyThread,
   createId,
@@ -22,6 +23,15 @@ type ApiState = {
   loading: boolean;
 };
 
+type WorkspaceSource = "database" | "local";
+
+type AssistantBlock =
+  | { type: "heading"; content: string }
+  | { type: "ordered-list"; items: string[] }
+  | { type: "unordered-list"; items: string[] }
+  | { type: "paragraph"; content: string }
+  | { type: "divider" };
+
 type ThreadCardProps = {
   isActive: boolean;
   isDeletable: boolean;
@@ -39,6 +49,8 @@ type EntryTabButtonProps = {
 type SelectedEntryPanelProps = {
   entry: WorkspaceEntry | null;
   onLoadDraft: (entry: WorkspaceEntry) => void;
+  onOpenEditor: () => void;
+  onExportPdf: (entry: WorkspaceEntry) => void;
 };
 
 const initialApiState: ApiState = {
@@ -62,15 +74,19 @@ function renderInlineMarkdown(text: string) {
   });
 }
 
-function renderAssistantOutput(output: string) {
+function stripInlineMarkdown(text: string) {
+  return text.replace(/\*\*([^*]+)\*\*/g, "$1").replace(/\*([^*]+)\*/g, "$1");
+}
+
+function parseAssistantOutput(output: string) {
   const normalized = output.replace(/\r\n/g, "\n").trim();
 
   if (!normalized) {
-    return null;
+    return [] as AssistantBlock[];
   }
 
   const lines = normalized.split("\n");
-  const blocks: ReactNode[] = [];
+  const blocks: AssistantBlock[] = [];
   let index = 0;
 
   while (index < lines.length) {
@@ -82,17 +98,13 @@ function renderAssistantOutput(output: string) {
     }
 
     if (line === "---") {
-      blocks.push(<hr key={`hr-${index}`} />);
+      blocks.push({ type: "divider" });
       index += 1;
       continue;
     }
 
     if (line.startsWith("## ")) {
-      blocks.push(
-        <h3 key={`heading-${index}`} className="response-heading">
-          {line.slice(3)}
-        </h3>
-      );
+      blocks.push({ type: "heading", content: line.slice(3) });
       index += 1;
       continue;
     }
@@ -105,13 +117,7 @@ function renderAssistantOutput(output: string) {
         index += 1;
       }
 
-      blocks.push(
-        <ol key={`ol-${index}`} className="response-list response-list-numbered">
-          {items.map((item, itemIndex) => (
-            <li key={`${item}-${itemIndex}`}>{renderInlineMarkdown(item)}</li>
-          ))}
-        </ol>
-      );
+      blocks.push({ type: "ordered-list", items });
       continue;
     }
 
@@ -123,13 +129,7 @@ function renderAssistantOutput(output: string) {
         index += 1;
       }
 
-      blocks.push(
-        <ul key={`ul-${index}`} className="response-list">
-          {items.map((item, itemIndex) => (
-            <li key={`${item}-${itemIndex}`}>{renderInlineMarkdown(item)}</li>
-          ))}
-        </ul>
-      );
+      blocks.push({ type: "unordered-list", items });
       continue;
     }
 
@@ -152,14 +152,62 @@ function renderAssistantOutput(output: string) {
       index += 1;
     }
 
-    blocks.push(
-      <p key={`p-${index}`} className="response-paragraph">
-        {renderInlineMarkdown(paragraphLines.join(" "))}
-      </p>
-    );
+    blocks.push({ type: "paragraph", content: paragraphLines.join(" ") });
   }
 
   return blocks;
+}
+
+function renderAssistantOutput(output: string) {
+  const blocks = parseAssistantOutput(output);
+
+  if (blocks.length === 0) {
+    return null;
+  }
+
+  return blocks.map((block, index) => {
+    if (block.type === "divider") {
+      return <hr key={`hr-${index}`} />;
+    }
+
+    if (block.type === "heading") {
+      return (
+        <h3 key={`heading-${index}`} className="response-heading">
+          {block.content}
+        </h3>
+      );
+    }
+
+    if (block.type === "ordered-list") {
+      return (
+        <ol key={`ol-${index}`} className="response-list response-list-numbered">
+          {block.items.map((item, itemIndex) => (
+            <li key={`${item}-${itemIndex}`}>{renderInlineMarkdown(item)}</li>
+          ))}
+        </ol>
+      );
+    }
+
+    if (block.type === "unordered-list") {
+      return (
+        <ul key={`ul-${index}`} className="response-list">
+          {block.items.map((item, itemIndex) => (
+            <li key={`${item}-${itemIndex}`}>{renderInlineMarkdown(item)}</li>
+          ))}
+        </ul>
+      );
+    }
+
+    return (
+      <p key={`p-${index}`} className="response-paragraph">
+        {renderInlineMarkdown(block.content)}
+      </p>
+    );
+  });
+}
+
+function getDisplayThreadTitle(thread: WorkspaceThread) {
+  return thread.title === "Untitled draft" ? formatTimestamp(thread.createdAt) : thread.title;
 }
 
 function ThreadCardButton({ isActive, isDeletable, onDelete, onSelect, thread }: ThreadCardProps) {
@@ -178,9 +226,8 @@ function ThreadCardButton({ isActive, isDeletable, onDelete, onSelect, thread }:
       }}
     >
       <div className="thread-card-top">
-        <strong>{thread.title}</strong>
+        <strong>{getDisplayThreadTitle(thread)}</strong>
         <div className="thread-card-actions">
-          <span>{formatTimestamp(thread.updatedAt)}</span>
           {isDeletable ? (
             <button
               className="thread-delete-button"
@@ -211,7 +258,12 @@ function EntryTabButton({ entry, isSelected, onSelect }: EntryTabButtonProps) {
   );
 }
 
-function SelectedEntryPanel({ entry, onLoadDraft }: SelectedEntryPanelProps) {
+function SelectedEntryPanel({
+  entry,
+  onLoadDraft,
+  onOpenEditor,
+  onExportPdf
+}: SelectedEntryPanelProps) {
   const heading = entry ? `${entry.label} · ${formatTimestamp(entry.createdAt)}` : "Assistant Response";
   const meta = entry
     ? entry.kind === "assistant-feedback"
@@ -226,11 +278,23 @@ function SelectedEntryPanel({ entry, onLoadDraft }: SelectedEntryPanelProps) {
           <h2>{heading}</h2>
           <p className="result-meta">{meta}</p>
         </div>
-        {entry?.kind === "student-draft" ? (
-          <button className="ghost-button" type="button" onClick={() => onLoadDraft(entry)}>
-            Load into editor
-          </button>
-        ) : null}
+        <div className="result-card-actions">
+          {entry?.kind === "assistant-feedback" ? (
+            <>
+              <button className="ghost-button" type="button" onClick={onOpenEditor}>
+                Open editor
+              </button>
+              <button className="ghost-button" type="button" onClick={() => onExportPdf(entry)}>
+                Export PDF
+              </button>
+            </>
+          ) : null}
+          {entry?.kind === "student-draft" ? (
+            <button className="ghost-button" type="button" onClick={() => onLoadDraft(entry)}>
+              Load into editor
+            </button>
+          ) : null}
+        </div>
       </div>
 
       {entry ? (
@@ -285,31 +349,158 @@ function createHiddenPlaceholderThread() {
   return createEmptyThread({ isPlaceholder: true });
 }
 
+async function loadWorkspaceFromServer() {
+  try {
+    const response = await fetch("/api/workspace", {
+      method: "GET",
+      cache: "no-store"
+    });
+
+    const data = (await response.json()) as {
+      ok: boolean;
+      source?: "database" | "local";
+      threads?: WorkspaceThread[];
+      reason?: string;
+    };
+
+    if (!response.ok || !data.ok) {
+      return null;
+    }
+
+    return {
+      source: data.source ?? "local",
+      threads: data.source === "database" ? sortThreads(data.threads ?? []) : [],
+      reason: data.reason ?? ""
+    };
+  } catch {
+    return {
+      source: "local" as const,
+      threads: [] as WorkspaceThread[],
+      reason: "Unable to check the shared workspace service right now."
+    };
+  }
+}
+
+async function persistThreadToServer(thread: WorkspaceThread) {
+  const response = await fetch("/api/workspace", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ thread })
+  });
+
+  const data = (await response.json()) as {
+    ok: boolean;
+    persisted?: boolean;
+    error?: string;
+    reason?: string;
+  };
+
+  if (!response.ok || !data.ok) {
+    throw new Error(data.error || "Unable to save this thread to the shared workspace.");
+  }
+
+  return {
+    persisted: data.persisted ?? false,
+    reason: data.reason ?? ""
+  };
+}
+
+async function deleteThreadFromServer(threadId: string) {
+  const response = await fetch(`/api/workspace?threadId=${encodeURIComponent(threadId)}`, {
+    method: "DELETE"
+  });
+
+  const data = (await response.json()) as {
+    ok: boolean;
+    deleted?: boolean;
+    error?: string;
+  };
+
+  if (!response.ok || !data.ok) {
+    throw new Error(data.error || "Unable to delete this thread from the shared workspace.");
+  }
+
+  return data.deleted ?? false;
+}
+
+function registerPdfFont(
+  document: {
+    addFileToVFS: (fileName: string, fileData: string) => void;
+    addFont: (postScriptName: string, family: string, style: "normal" | "bold") => void;
+  },
+  fileName: string,
+  family: string,
+  style: "normal" | "bold"
+) {
+  document.addFileToVFS(fileName, loraFontBase64);
+  document.addFont(fileName, family, style);
+}
+
+function formatPdfFilename(entry: WorkspaceEntry) {
+  const baseName = entry.label.replace(/\s+/g, "-");
+  const dateSegment = new Intl.DateTimeFormat("en", {
+    month: "short",
+    day: "numeric"
+  })
+    .format(new Date(entry.createdAt))
+    .replace(/\s+/g, "-");
+
+  return `${baseName}-${dateSegment}`;
+}
+
 export default function HomePage() {
   const [workspaceReady, setWorkspaceReady] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [workspaceSource, setWorkspaceSource] = useState<WorkspaceSource>("local");
+  const [workspaceStatusMessage, setWorkspaceStatusMessage] = useState("");
   const [threads, setThreads] = useState<WorkspaceThread[]>([]);
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
   const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null);
   const [mode, setMode] = useState<TrainingMode>("day-a");
+  const [isEditorVisible, setIsEditorVisible] = useState(true);
   const [essay, setEssay] = useState("");
   const [phrasesInput, setPhrasesInput] = useState("");
   const [keywords, setKeywords] = useState("");
   const [apiState, setApiState] = useState<ApiState>(initialApiState);
 
   useEffect(() => {
-    const storedThreads = parseStoredThreads();
-    const nextThreads = storedThreads.length > 0 ? storedThreads : [createHiddenPlaceholderThread()];
-    const initialThread = nextThreads[0];
+    let isCancelled = false;
 
-    setThreads(nextThreads);
-    setActiveThreadId(initialThread?.id ?? null);
-    setSelectedEntryId(initialThread?.entries.at(-1)?.id ?? null);
-    setMode(initialThread?.draft.mode ?? "day-a");
-    setEssay(initialThread?.draft.essay ?? "");
-    setPhrasesInput(initialThread?.draft.phrasesInput ?? "");
-    setKeywords(initialThread?.draft.keywords ?? "");
-    setWorkspaceReady(true);
+    async function initializeWorkspace() {
+      const syncedWorkspace = await loadWorkspaceFromServer();
+      const storedThreads = parseStoredThreads();
+      const nextThreads =
+        syncedWorkspace && syncedWorkspace.threads.length > 0
+          ? syncedWorkspace.threads
+          : storedThreads.length > 0
+            ? storedThreads
+            : [createHiddenPlaceholderThread()];
+      const initialThread = nextThreads[0];
+
+      if (isCancelled) {
+        return;
+      }
+
+      setWorkspaceSource(syncedWorkspace?.source ?? "local");
+      setWorkspaceStatusMessage(syncedWorkspace?.reason ?? "");
+      setThreads(nextThreads);
+      setActiveThreadId(initialThread?.id ?? null);
+      setSelectedEntryId(initialThread?.entries.at(-1)?.id ?? null);
+      setMode(initialThread?.draft.mode ?? "day-a");
+      setIsEditorVisible(Boolean(initialThread?.draft.essay) || (initialThread?.entries.length ?? 0) === 0);
+      setEssay(initialThread?.draft.essay ?? "");
+      setPhrasesInput(initialThread?.draft.phrasesInput ?? "");
+      setKeywords(initialThread?.draft.keywords ?? "");
+      setWorkspaceReady(true);
+    }
+
+    void initializeWorkspace();
+
+    return () => {
+      isCancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -329,6 +520,28 @@ export default function HomePage() {
     () => activeThread?.entries.find((entry) => entry.id === selectedEntryId) ?? null,
     [activeThread, selectedEntryId]
   );
+  const modeEntries = useMemo(
+    () => activeThread?.entries.filter((entry) => entry.mode === mode) ?? [],
+    [activeThread, mode]
+  );
+
+  useEffect(() => {
+    if (!activeThread) {
+      return;
+    }
+
+    const matchingEntries = activeThread.entries.filter((entry) => entry.mode === mode);
+
+    if (matchingEntries.length === 0) {
+      setSelectedEntryId(null);
+      setIsEditorVisible(true);
+      return;
+    }
+
+    if (!matchingEntries.some((entry) => entry.id === selectedEntryId)) {
+      setSelectedEntryId(matchingEntries.at(-1)?.id ?? null);
+    }
+  }, [activeThread, mode, selectedEntryId]);
 
   const copy = modeCopy[mode];
   const phrases = useMemo(() => normalizePhraseInput(phrasesInput), [phrasesInput]);
@@ -351,7 +564,7 @@ export default function HomePage() {
           return {
             ...thread,
             isPlaceholder: false,
-            title: summarizeThreadTitle(nextDraft.essay ?? thread.draft.essay),
+            title: summarizeThreadTitle(nextDraft.essay ?? thread.draft.essay, thread.createdAt),
             updatedAt: new Date().toISOString(),
             draft: {
               ...thread.draft,
@@ -374,6 +587,7 @@ export default function HomePage() {
     setActiveThreadId(thread.id);
     setSelectedEntryId(thread.entries.at(-1)?.id ?? null);
     setMode(thread.draft.mode);
+    setIsEditorVisible(Boolean(thread.draft.essay) || thread.entries.length === 0);
     setEssay(thread.draft.essay);
     setPhrasesInput(thread.draft.phrasesInput);
     setKeywords(thread.draft.keywords);
@@ -388,6 +602,7 @@ export default function HomePage() {
     setSelectedEntryId(null);
     setIsSidebarOpen(true);
     setMode(nextThread.draft.mode);
+    setIsEditorVisible(true);
     setEssay("");
     setPhrasesInput("");
     setKeywords("");
@@ -402,7 +617,7 @@ export default function HomePage() {
     }
 
     const shouldDelete = window.confirm(
-      `Delete "${thread.title}" and all saved snapshots in this browser?`
+      `Delete "${getDisplayThreadTitle(thread)}" and all saved snapshots in this browser?`
     );
 
     if (!shouldDelete) {
@@ -413,21 +628,32 @@ export default function HomePage() {
     const fallbackThread = remainingThreads[0] ?? createHiddenPlaceholderThread();
     const nextThreads = remainingThreads.length > 0 ? sortThreads(remainingThreads) : [fallbackThread];
 
-    setThreads(nextThreads);
+      setThreads(nextThreads);
+      setWorkspaceSource("local");
+      setWorkspaceStatusMessage("This thread was removed locally. Shared sync will update only when the deployment has a working DATABASE_URL.");
 
-    if (activeThreadId === threadId) {
+      if (activeThreadId === threadId) {
       setActiveThreadId(fallbackThread.id);
       setSelectedEntryId(fallbackThread.entries.at(-1)?.id ?? null);
       setMode(fallbackThread.draft.mode);
+      setIsEditorVisible(Boolean(fallbackThread.draft.essay) || fallbackThread.entries.length === 0);
       setEssay(fallbackThread.draft.essay);
       setPhrasesInput(fallbackThread.draft.phrasesInput);
       setKeywords(fallbackThread.draft.keywords);
       setApiState(initialApiState);
     }
+
+    void deleteThreadFromServer(threadId).catch((error) => {
+      setApiState({
+        loading: false,
+        error: error instanceof Error ? error.message : "Deleted locally but failed to sync delete."
+      });
+    });
   }
 
   function handleModeChange(nextMode: TrainingMode) {
     setMode(nextMode);
+    setIsEditorVisible(true);
     syncDraftToThread({ mode: nextMode });
   }
 
@@ -437,6 +663,7 @@ export default function HomePage() {
     }
 
     setMode(entry.mode);
+    setIsEditorVisible(true);
     setEssay(entry.content);
     setSelectedEntryId(entry.id);
     syncDraftToThread({
@@ -525,34 +752,40 @@ export default function HomePage() {
         createdAt: now
       };
 
-      setThreads((currentThreads) => {
-        const existingThread = currentThreads.find((thread) => thread.id === threadId);
-        const baseThread = existingThread ?? createEmptyThread();
+      const existingThread = threads.find((thread) => thread.id === threadId);
+      const baseThread = existingThread ?? createEmptyThread();
+      const nextThread: WorkspaceThread = {
+        ...baseThread,
+        id: threadId,
+        isPlaceholder: false,
+        title: summarizeThreadTitle(trimmedEssay),
+        updatedAt: now,
+        currentStage: getStageFromMode(mode, "assistant-feedback"),
+        entries: [...baseThread.entries, userEntry, assistantEntry],
+        draft: {
+          mode: mode === "day-a" ? "day-b" : mode,
+          essay: "",
+          phrasesInput,
+          keywords,
+          lastSavedAt: now
+        }
+      };
 
+      setThreads((currentThreads) => {
         return sortThreads([
-          {
-            ...baseThread,
-            id: threadId,
-            isPlaceholder: false,
-            title: summarizeThreadTitle(trimmedEssay),
-            updatedAt: now,
-            currentStage: getStageFromMode(mode, "assistant-feedback"),
-            entries: [...baseThread.entries, userEntry, assistantEntry],
-            draft: {
-              mode: mode === "day-a" ? "day-b" : mode,
-              essay: "",
-              phrasesInput,
-              keywords,
-              lastSavedAt: now
-            }
-          },
+          nextThread,
           ...currentThreads.filter((thread) => thread.id !== threadId)
         ]);
       });
 
+      const persistenceResult = await persistThreadToServer(nextThread);
+      setWorkspaceSource(persistenceResult.persisted ? "database" : "local");
+      setWorkspaceStatusMessage(persistenceResult.reason);
+
       setSelectedEntryId(assistantEntry.id);
       setActiveThreadId(threadId);
-      setMode(mode === "day-a" ? "day-b" : mode);
+      setMode(mode);
+      setIsEditorVisible(false);
       setEssay("");
       setApiState({
         loading: false,
@@ -573,25 +806,136 @@ export default function HomePage() {
     return (
       <div className="thread-toolbar">
         <div>
-          <strong>{activeThread?.title ?? "Untitled draft"}</strong>
-          <p>
-            Autosaved in this browser. To sync across devices later, wire the same data model
-            into Postgres.
-          </p>
+          <strong>
+            {activeThread ? getDisplayThreadTitle(activeThread) : formatTimestamp(new Date().toISOString())}
+          </strong>
+          <p>Review each Schliemann cycle by switching between Day A and Day B snapshots.</p>
         </div>
-        <span className="thread-toolbar-badge">{savedSnapshotCount}</span>
       </div>
     );
   }
 
+  async function handleExportPdf(entry: WorkspaceEntry) {
+    if (entry.kind !== "assistant-feedback") {
+      return;
+    }
+
+    try {
+      const { jsPDF } = await import("jspdf");
+      const document = new jsPDF({
+        unit: "pt",
+        format: "a4"
+      });
+      registerPdfFont(document, "Lora-Regular.ttf", "Lora", "normal");
+      registerPdfFont(document, "Lora-Bold.ttf", "Lora", "bold");
+
+      const blocks = parseAssistantOutput(entry.content);
+      const pageWidth = document.internal.pageSize.getWidth();
+      const pageHeight = document.internal.pageSize.getHeight();
+      const margin = 40;
+      const maxWidth = pageWidth - margin * 2;
+      const title = `${entry.label} · ${formatTimestamp(entry.createdAt)}`;
+      let cursorY = margin;
+      const lineHeight = 18;
+
+      const ensurePageSpace = (requiredHeight: number) => {
+        if (cursorY + requiredHeight <= pageHeight - margin) {
+          return;
+        }
+
+        document.addPage();
+        cursorY = margin;
+      };
+
+      document.setFont("Lora", "bold");
+      document.setTextColor(31, 28, 24);
+      document.setFontSize(20);
+      document.text(title, margin, cursorY);
+      cursorY += 16;
+
+      document.setDrawColor(206, 185, 157);
+      document.line(margin, cursorY, pageWidth - margin, cursorY);
+      cursorY += 24;
+
+      for (const block of blocks) {
+        if (block.type === "divider") {
+          ensurePageSpace(20);
+          document.setDrawColor(222, 210, 190);
+          document.line(margin, cursorY, pageWidth - margin, cursorY);
+          cursorY += 20;
+          continue;
+        }
+
+        if (block.type === "heading") {
+          ensurePageSpace(24);
+          document.setFont("Lora", "bold");
+          document.setTextColor(127, 57, 23);
+          document.setFontSize(14);
+          document.text(stripInlineMarkdown(block.content), margin, cursorY);
+          cursorY += 22;
+          continue;
+        }
+
+        if (block.type === "paragraph") {
+          const lines = document.splitTextToSize(stripInlineMarkdown(block.content), maxWidth);
+          ensurePageSpace(lines.length * lineHeight + 12);
+          document.setFont("Lora", "normal");
+          document.setTextColor(31, 28, 24);
+          document.setFontSize(12);
+
+          for (const line of lines) {
+            document.text(line, margin, cursorY);
+            cursorY += lineHeight;
+          }
+
+          cursorY += 10;
+          continue;
+        }
+
+        const bulletWidth = maxWidth - 18;
+        const items = block.items.map((item, itemIndex) =>
+          block.type === "ordered-list"
+            ? `${itemIndex + 1}. ${stripInlineMarkdown(item)}`
+            : `• ${stripInlineMarkdown(item)}`
+        );
+
+        document.setFont("Lora", "normal");
+        document.setTextColor(31, 28, 24);
+        document.setFontSize(12);
+
+        for (const item of items) {
+          const lines = document.splitTextToSize(item, bulletWidth);
+          ensurePageSpace(lines.length * lineHeight + 8);
+
+          for (const [lineIndex, line] of lines.entries()) {
+            document.text(line, margin + (lineIndex === 0 ? 0 : 12), cursorY);
+            cursorY += lineHeight;
+          }
+
+          cursorY += 4;
+        }
+
+        cursorY += 6;
+      }
+
+      document.save(`${formatPdfFilename(entry)}.pdf`);
+    } catch (error) {
+      setApiState({
+        loading: false,
+        error:
+          error instanceof Error ? error.message : "Unable to export this feedback as a PDF right now."
+      });
+    }
+  }
+
   function renderEntryTabs() {
-    if (!activeThread?.entries.length) {
+    if (!modeEntries.length) {
       return null;
     }
 
     return (
       <div className="entry-tabs" role="tablist" aria-label="Thread snapshots">
-        {activeThread.entries.map((entry) => (
+        {modeEntries.map((entry) => (
           <EntryTabButton
             key={entry.id}
             entry={entry}
@@ -609,7 +953,7 @@ export default function HomePage() {
         <div className="sidebar-header">
           <div>
             <h2>Writing threads</h2>
-            <p>Local browser history for your essay cycles.</p>
+            <p>Track each Schliemann cycle from v1 draft to feedback and revision.</p>
           </div>
           <div className="sidebar-actions">
             <button className="ghost-button" type="button" onClick={handleCreateThread}>
@@ -655,30 +999,32 @@ export default function HomePage() {
         <span className="eyebrow">Schliemann Cycle</span>
         <h1>Train your English writing inside one focused workspace.</h1>
         <p>
-          Your draft history now stays in this browser. The left rail works like a lightweight
-          writing thread list, while the main workspace keeps each thread&apos;s latest draft and
-          feedback snapshots together.
+          The Schliemann method turns one topic into a short learning cycle: write a Day A draft,
+          study targeted feedback, then return on Day B to rewrite with stronger phrasing and
+          clearer structure.
         </p>
       </section>
 
       <section className="workspace workspace-layout" data-sidebar-open={isSidebarOpen}>
-        <button
-          className="sidebar-toggle"
-          type="button"
-          data-open={isSidebarOpen}
-          aria-expanded={isSidebarOpen}
-          aria-controls="thread-sidebar"
-          aria-label={isSidebarOpen ? "Hide thread sidebar" : "Show thread sidebar"}
-          onClick={() => setIsSidebarOpen((currentValue) => !currentValue)}
-        >
-          <span aria-hidden="true">{isSidebarOpen ? "←" : "☰"}</span>
-          <span>{isSidebarOpen ? "Hide threads" : "Show threads"}</span>
-        </button>
+        <div className="workspace-sidebar-rail" data-open={isSidebarOpen}>
+          <button
+            className="sidebar-toggle"
+            type="button"
+            data-open={isSidebarOpen}
+            aria-expanded={isSidebarOpen}
+            aria-controls="thread-sidebar"
+            aria-label={isSidebarOpen ? "Hide thread sidebar" : "Show thread sidebar"}
+            onClick={() => setIsSidebarOpen((currentValue) => !currentValue)}
+          >
+            <span aria-hidden="true">{isSidebarOpen ? "←" : "☰"}</span>
+            <span>{isSidebarOpen ? "Hide threads" : "Show threads"}</span>
+          </button>
 
-        {renderSidebar()}
+          {renderSidebar()}
+        </div>
 
         <div className="workspace-main">
-          <section className="panel form-panel">
+          <section className="panel form-panel" data-hidden={!isEditorVisible}>
             <div className="panel-header panel-header-stacked">
               <div className="panel-header-copy">
                 <h2>{copy.title}</h2>
@@ -722,9 +1068,6 @@ export default function HomePage() {
                     syncDraftToThread({ essay: nextValue });
                   }}
                 />
-                <p className="field-help">
-                  Autosaves to this browser as you type. Submit still requires a non-empty essay.
-                </p>
               </div>
 
               <div className="field-row">
@@ -780,7 +1123,12 @@ export default function HomePage() {
             </form>
           </section>
 
-          <SelectedEntryPanel entry={selectedEntry} onLoadDraft={handleLoadDraft} />
+          <SelectedEntryPanel
+            entry={selectedEntry}
+            onLoadDraft={handleLoadDraft}
+            onOpenEditor={() => setIsEditorVisible(true)}
+            onExportPdf={handleExportPdf}
+          />
         </div>
       </section>
     </main>
