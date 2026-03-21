@@ -450,12 +450,17 @@ button {
 }
 
 .entry-tab {
+  display: flex;
+  flex: 0 0 110px;
   min-width: 110px;
+  min-height: 64px;
   padding: 12px 14px;
   border-radius: 16px;
   background: rgba(255, 248, 239, 0.96);
   border: 1px solid rgba(96, 72, 44, 0.12);
   text-align: left;
+  align-items: flex-start;
+  justify-content: center;
 }
 
 .entry-tab[aria-pressed="true"] {

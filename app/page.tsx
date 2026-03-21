@@ -48,8 +48,6 @@ type EntryTabButtonProps = {
 
 type SelectedEntryPanelProps = {
   entry: WorkspaceEntry | null;
-  onLoadDraft: (entry: WorkspaceEntry) => void;
-  onOpenEditor: () => void;
   onExportPdf: (entry: WorkspaceEntry) => void;
 };
 
@@ -260,15 +258,13 @@ function EntryTabButton({ entry, isSelected, onSelect }: EntryTabButtonProps) {
 
 function SelectedEntryPanel({
   entry,
-  onLoadDraft,
-  onOpenEditor,
   onExportPdf
 }: SelectedEntryPanelProps) {
   const heading = entry ? `${entry.label} · ${formatTimestamp(entry.createdAt)}` : "Assistant Response";
   const meta = entry
     ? entry.kind === "assistant-feedback"
       ? "Saved feedback snapshot from your workspace history."
-      : "Saved student draft snapshot. Use Load into editor to continue revising from here."
+      : "Saved student draft snapshot from your workspace history."
     : "Your latest saved draft or assistant feedback will appear here.";
 
   return (
@@ -280,18 +276,8 @@ function SelectedEntryPanel({
         </div>
         <div className="result-card-actions">
           {entry?.kind === "assistant-feedback" ? (
-            <>
-              <button className="ghost-button" type="button" onClick={onOpenEditor}>
-                Open editor
-              </button>
-              <button className="ghost-button" type="button" onClick={() => onExportPdf(entry)}>
-                Export PDF
-              </button>
-            </>
-          ) : null}
-          {entry?.kind === "student-draft" ? (
-            <button className="ghost-button" type="button" onClick={() => onLoadDraft(entry)}>
-              Load into editor
+            <button className="ghost-button" type="button" onClick={() => onExportPdf(entry)}>
+              Export PDF
             </button>
           ) : null}
         </div>
@@ -450,6 +436,18 @@ function formatPdfFilename(entry: WorkspaceEntry) {
   return `${baseName}-${dateSegment}`;
 }
 
+function getPreferredEntryId(entries: WorkspaceEntry[], mode: TrainingMode) {
+  const latestDraft = [...entries].reverse().find(
+    (entry) => entry.mode === mode && entry.kind === "student-draft"
+  );
+
+  if (latestDraft) {
+    return latestDraft.id;
+  }
+
+  return [...entries].reverse().find((entry) => entry.mode === mode)?.id ?? null;
+}
+
 export default function HomePage() {
   const [workspaceReady, setWorkspaceReady] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -459,7 +457,6 @@ export default function HomePage() {
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
   const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null);
   const [mode, setMode] = useState<TrainingMode>("day-a");
-  const [isEditorVisible, setIsEditorVisible] = useState(true);
   const [essay, setEssay] = useState("");
   const [phrasesInput, setPhrasesInput] = useState("");
   const [keywords, setKeywords] = useState("");
@@ -487,9 +484,8 @@ export default function HomePage() {
       setWorkspaceStatusMessage(syncedWorkspace?.reason ?? "");
       setThreads(nextThreads);
       setActiveThreadId(initialThread?.id ?? null);
-      setSelectedEntryId(initialThread?.entries.at(-1)?.id ?? null);
+      setSelectedEntryId(getPreferredEntryId(initialThread?.entries ?? [], initialThread?.draft.mode ?? "day-a"));
       setMode(initialThread?.draft.mode ?? "day-a");
-      setIsEditorVisible(Boolean(initialThread?.draft.essay) || (initialThread?.entries.length ?? 0) === 0);
       setEssay(initialThread?.draft.essay ?? "");
       setPhrasesInput(initialThread?.draft.phrasesInput ?? "");
       setKeywords(initialThread?.draft.keywords ?? "");
@@ -524,6 +520,7 @@ export default function HomePage() {
     () => activeThread?.entries.filter((entry) => entry.mode === mode) ?? [],
     [activeThread, mode]
   );
+  const isEditorVisible = modeEntries.length === 0;
 
   useEffect(() => {
     if (!activeThread) {
@@ -534,12 +531,11 @@ export default function HomePage() {
 
     if (matchingEntries.length === 0) {
       setSelectedEntryId(null);
-      setIsEditorVisible(true);
       return;
     }
 
     if (!matchingEntries.some((entry) => entry.id === selectedEntryId)) {
-      setSelectedEntryId(matchingEntries.at(-1)?.id ?? null);
+      setSelectedEntryId(getPreferredEntryId(matchingEntries, mode));
     }
   }, [activeThread, mode, selectedEntryId]);
 
@@ -585,9 +581,8 @@ export default function HomePage() {
     }
 
     setActiveThreadId(thread.id);
-    setSelectedEntryId(thread.entries.at(-1)?.id ?? null);
+    setSelectedEntryId(getPreferredEntryId(thread.entries, thread.draft.mode));
     setMode(thread.draft.mode);
-    setIsEditorVisible(Boolean(thread.draft.essay) || thread.entries.length === 0);
     setEssay(thread.draft.essay);
     setPhrasesInput(thread.draft.phrasesInput);
     setKeywords(thread.draft.keywords);
@@ -602,7 +597,6 @@ export default function HomePage() {
     setSelectedEntryId(null);
     setIsSidebarOpen(true);
     setMode(nextThread.draft.mode);
-    setIsEditorVisible(true);
     setEssay("");
     setPhrasesInput("");
     setKeywords("");
@@ -628,15 +622,16 @@ export default function HomePage() {
     const fallbackThread = remainingThreads[0] ?? createHiddenPlaceholderThread();
     const nextThreads = remainingThreads.length > 0 ? sortThreads(remainingThreads) : [fallbackThread];
 
-      setThreads(nextThreads);
-      setWorkspaceSource("local");
-      setWorkspaceStatusMessage("This thread was removed locally. Shared sync will update only when the deployment has a working DATABASE_URL.");
+    setThreads(nextThreads);
+    setWorkspaceSource("local");
+    setWorkspaceStatusMessage(
+      "This thread was removed locally. Shared sync will update only when the deployment has a working DATABASE_URL."
+    );
 
-      if (activeThreadId === threadId) {
+    if (activeThreadId === threadId) {
       setActiveThreadId(fallbackThread.id);
-      setSelectedEntryId(fallbackThread.entries.at(-1)?.id ?? null);
+      setSelectedEntryId(getPreferredEntryId(fallbackThread.entries, fallbackThread.draft.mode));
       setMode(fallbackThread.draft.mode);
-      setIsEditorVisible(Boolean(fallbackThread.draft.essay) || fallbackThread.entries.length === 0);
       setEssay(fallbackThread.draft.essay);
       setPhrasesInput(fallbackThread.draft.phrasesInput);
       setKeywords(fallbackThread.draft.keywords);
@@ -653,23 +648,7 @@ export default function HomePage() {
 
   function handleModeChange(nextMode: TrainingMode) {
     setMode(nextMode);
-    setIsEditorVisible(true);
     syncDraftToThread({ mode: nextMode });
-  }
-
-  function handleLoadDraft(entry: WorkspaceEntry) {
-    if (entry.kind !== "student-draft") {
-      return;
-    }
-
-    setMode(entry.mode);
-    setIsEditorVisible(true);
-    setEssay(entry.content);
-    setSelectedEntryId(entry.id);
-    syncDraftToThread({
-      essay: entry.content,
-      mode: entry.mode
-    });
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -765,8 +744,8 @@ export default function HomePage() {
         draft: {
           mode: mode === "day-a" ? "day-b" : mode,
           essay: "",
-          phrasesInput,
-          keywords,
+          phrasesInput: "",
+          keywords: "",
           lastSavedAt: now
         }
       };
@@ -782,11 +761,12 @@ export default function HomePage() {
       setWorkspaceSource(persistenceResult.persisted ? "database" : "local");
       setWorkspaceStatusMessage(persistenceResult.reason);
 
-      setSelectedEntryId(assistantEntry.id);
+      setSelectedEntryId(userEntry.id);
       setActiveThreadId(threadId);
       setMode(mode);
-      setIsEditorVisible(false);
       setEssay("");
+      setPhrasesInput("");
+      setKeywords("");
       setApiState({
         loading: false,
         error: ""
@@ -1030,7 +1010,7 @@ export default function HomePage() {
         </div>
 
         <div className="workspace-main">
-          <section className="panel form-panel" data-hidden={!isEditorVisible}>
+          <section className="panel form-panel">
             <div className="panel-header panel-header-stacked">
               <div className="panel-header-copy">
                 <h2>{copy.title}</h2>
@@ -1060,79 +1040,79 @@ export default function HomePage() {
             {renderThreadToolbar()}
             {renderEntryTabs()}
 
-            <form className="form-grid" onSubmit={handleSubmit}>
-              <div className="field">
-                <label htmlFor="essay">{copy.essayLabel}</label>
-                <textarea
-                  id="essay"
-                  name="essay"
-                  placeholder={copy.essayPlaceholder}
-                  value={essay}
-                  onChange={(event) => {
-                    const nextValue = event.target.value;
-                    setEssay(nextValue);
-                    syncDraftToThread({ essay: nextValue });
-                  }}
-                />
-              </div>
-
-              <div className="field-row">
+            {isEditorVisible ? (
+              <form className="form-grid" onSubmit={handleSubmit}>
                 <div className="field">
-                  <label htmlFor="phrases">Phrases / collocations</label>
+                  <label htmlFor="essay">{copy.essayLabel}</label>
                   <textarea
-                    id="phrases"
-                    name="phrases"
-                    placeholder="due to, in advance, take responsibility for"
-                    value={phrasesInput}
+                    id="essay"
+                    name="essay"
+                    placeholder={copy.essayPlaceholder}
+                    value={essay}
                     onChange={(event) => {
                       const nextValue = event.target.value;
-                      setPhrasesInput(nextValue);
-                      syncDraftToThread({ phrasesInput: nextValue });
+                      setEssay(nextValue);
+                      syncDraftToThread({ essay: nextValue });
                     }}
                   />
-                  <p className="field-help">
-                    {copy.phrasesHelp} Current count: <strong>{phrases.length}</strong>
-                  </p>
                 </div>
 
-                <div className="field">
-                  <label htmlFor="keywords">Keywords / topic</label>
-                  <textarea
-                    id="keywords"
-                    name="keywords"
-                    placeholder="Optional notes, focus areas, or topic hints"
-                    value={keywords}
-                    onChange={(event) => {
-                      const nextValue = event.target.value;
-                      setKeywords(nextValue);
-                      syncDraftToThread({ keywords: nextValue });
-                    }}
-                  />
-                  <p className="field-help">{copy.keywordsHelp}</p>
+                <div className="field-row">
+                  <div className="field">
+                    <label htmlFor="phrases">Phrases / collocations</label>
+                    <textarea
+                      id="phrases"
+                      name="phrases"
+                      placeholder="due to, in advance, take responsibility for"
+                      value={phrasesInput}
+                      onChange={(event) => {
+                        const nextValue = event.target.value;
+                        setPhrasesInput(nextValue);
+                        syncDraftToThread({ phrasesInput: nextValue });
+                      }}
+                    />
+                    <p className="field-help">
+                      {copy.phrasesHelp} Current count: <strong>{phrases.length}</strong>
+                    </p>
+                  </div>
+
+                  <div className="field">
+                    <label htmlFor="keywords">Keywords / topic</label>
+                    <textarea
+                      id="keywords"
+                      name="keywords"
+                      placeholder="Optional notes, focus areas, or topic hints"
+                      value={keywords}
+                      onChange={(event) => {
+                        const nextValue = event.target.value;
+                        setKeywords(nextValue);
+                        syncDraftToThread({ keywords: nextValue });
+                      }}
+                    />
+                    <p className="field-help">{copy.keywordsHelp}</p>
+                  </div>
                 </div>
-              </div>
 
-              {apiState.error ? <div className="message error">{apiState.error}</div> : null}
+                {apiState.error ? <div className="message error">{apiState.error}</div> : null}
 
-              {!apiState.error && !apiState.loading && selectedEntry?.kind === "assistant-feedback" ? (
-                <div className="message success">
-                  Latest assistant feedback is saved in this browser. Pick any thread on the left to
-                  revisit older cycles.
+                {!apiState.error && !apiState.loading && selectedEntry?.kind === "assistant-feedback" ? (
+                  <div className="message success">
+                    Latest assistant feedback is saved in this browser. Pick any thread on the left to
+                    revisit older cycles.
+                  </div>
+                ) : null}
+
+                <div className="actions">
+                  <button className="submit-button" type="submit" disabled={apiState.loading || !workspaceReady}>
+                    {apiState.loading ? "Submitting..." : "Submit to Schliemann"}
+                  </button>
                 </div>
-              ) : null}
-
-              <div className="actions">
-                <button className="submit-button" type="submit" disabled={apiState.loading || !workspaceReady}>
-                  {apiState.loading ? "Submitting..." : "Submit to Schliemann"}
-                </button>
-              </div>
-            </form>
+              </form>
+            ) : null}
           </section>
 
           <SelectedEntryPanel
             entry={selectedEntry}
-            onLoadDraft={handleLoadDraft}
-            onOpenEditor={() => setIsEditorVisible(true)}
             onExportPdf={handleExportPdf}
           />
         </div>
