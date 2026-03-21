@@ -295,7 +295,6 @@ button {
 
 .thread-card-top span,
 .thread-stage,
-.entry-tab small,
 .thread-toolbar-badge {
   font-size: 0.78rem;
   color: var(--muted);
@@ -443,19 +442,27 @@ button {
 
 .entry-tabs {
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
-  overflow-x: auto;
-  padding-bottom: 4px;
+  padding: 2px 0 6px;
   margin-bottom: 18px;
 }
 
 .entry-tab {
+  display: flex;
+  flex: 0 0 110px;
+  align-items: center;
+  justify-content: center;
+  width: 110px;
   min-width: 110px;
+  min-height: 64px;
   padding: 12px 14px;
   border-radius: 16px;
   background: rgba(255, 248, 239, 0.96);
   border: 1px solid rgba(96, 72, 44, 0.12);
-  text-align: left;
+  text-align: center;
+  touch-action: manipulation;
+  user-select: none;
 }
 
 .entry-tab[aria-pressed="true"] {
@@ -463,15 +470,14 @@ button {
   border-color: rgba(174, 91, 47, 0.28);
 }
 
-.entry-tab span,
-.entry-tab small {
-  display: block;
-}
-
 .entry-tab span {
+  display: block;
+  width: 100%;
+  line-height: 1.15;
   font-weight: 700;
   color: var(--text);
-  margin-bottom: 3px;
+  text-align: center;
+  pointer-events: none;
 }
 
 .form-grid {
