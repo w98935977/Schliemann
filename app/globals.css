@@ -442,9 +442,8 @@ button {
 
 .entry-tabs {
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
-  overflow-x: auto;
-  overflow-y: visible;
   padding: 2px 0 6px;
   margin-bottom: 18px;
   position: relative;
@@ -452,8 +451,10 @@ button {
 }
 
 .entry-tab {
-  display: grid;
+  display: flex;
   flex: 0 0 110px;
+  align-items: center;
+  justify-content: center;
   width: 110px;
   min-width: 110px;
   min-height: 64px;
@@ -461,11 +462,9 @@ button {
   border-radius: 16px;
   background: rgba(255, 248, 239, 0.96);
   border: 1px solid rgba(96, 72, 44, 0.12);
-  text-align: left;
-  align-content: center;
-  justify-items: start;
-  position: relative;
-  z-index: 1;
+  text-align: center;
+  touch-action: manipulation;
+  user-select: none;
 }
 
 .entry-tab[aria-pressed="true"] {
@@ -475,9 +474,11 @@ button {
 
 .entry-tab span {
   display: block;
+  width: 100%;
   line-height: 1.15;
   font-weight: 700;
   color: var(--text);
+  text-align: center;
   pointer-events: none;
 }
 
