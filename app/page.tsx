@@ -48,6 +48,8 @@ type EntryTabButtonProps = {
 
 type SelectedEntryPanelProps = {
   entry: WorkspaceEntry | null;
+  canLoadDraft: boolean;
+  canOpenEditor: boolean;
   onLoadDraft: (entry: WorkspaceEntry) => void;
   onOpenEditor: () => void;
   onExportPdf: (entry: WorkspaceEntry) => void;
@@ -210,6 +212,17 @@ function getDisplayThreadTitle(thread: WorkspaceThread) {
   return thread.title === "Untitled draft" ? formatTimestamp(thread.createdAt) : thread.title;
 }
 
+function isModeLocked(thread: WorkspaceThread | null, mode: TrainingMode) {
+  if (!thread) {
+    return false;
+  }
+
+  if (mode !== "day-a") {
+    return false;
+  }
+
+  return thread.entries.some((entry) => entry.mode === "day-a");
+}
 function ThreadCardButton({ isActive, isDeletable, onDelete, onSelect, thread }: ThreadCardProps) {
   return (
     <div
@@ -260,6 +273,8 @@ function EntryTabButton({ entry, isSelected, onSelect }: EntryTabButtonProps) {
 
 function SelectedEntryPanel({
   entry,
+  canLoadDraft,
+  canOpenEditor,
   onLoadDraft,
   onOpenEditor,
   onExportPdf
@@ -281,15 +296,17 @@ function SelectedEntryPanel({
         <div className="result-card-actions">
           {entry?.kind === "assistant-feedback" ? (
             <>
-              <button className="ghost-button" type="button" onClick={onOpenEditor}>
-                Open editor
-              </button>
+              {canOpenEditor ? (
+                <button className="ghost-button" type="button" onClick={onOpenEditor}>
+                  Open editor
+                </button>
+              ) : null}
               <button className="ghost-button" type="button" onClick={() => onExportPdf(entry)}>
                 Export PDF
               </button>
             </>
           ) : null}
-          {entry?.kind === "student-draft" ? (
+          {entry?.kind === "student-draft" && canLoadDraft ? (
             <button className="ghost-button" type="button" onClick={() => onLoadDraft(entry)}>
               Load into editor
             </button>
@@ -524,6 +541,11 @@ export default function HomePage() {
     () => activeThread?.entries.filter((entry) => entry.mode === mode) ?? [],
     [activeThread, mode]
   );
+  const isCurrentModeLocked = useMemo(() => isModeLocked(activeThread, mode), [activeThread, mode]);
+  const canEditSelectedEntry =
+    !selectedEntry || selectedEntry.mode !== "day-a" || selectedEntry.kind !== "assistant-feedback";
+  const canLoadSelectedDraft =
+    !selectedEntry || selectedEntry.mode !== "day-a" || selectedEntry.kind !== "student-draft";
 
   useEffect(() => {
     if (!activeThread) {
@@ -653,12 +675,12 @@ export default function HomePage() {
 
   function handleModeChange(nextMode: TrainingMode) {
     setMode(nextMode);
-    setIsEditorVisible(true);
+    setIsEditorVisible(!isModeLocked(activeThread, nextMode));
     syncDraftToThread({ mode: nextMode });
   }
 
   function handleLoadDraft(entry: WorkspaceEntry) {
-    if (entry.kind !== "student-draft") {
+    if (entry.kind !== "student-draft" || entry.mode === "day-a") {
       return;
     }
 
@@ -1060,6 +1082,13 @@ export default function HomePage() {
             {renderThreadToolbar()}
             {renderEntryTabs()}
 
+            {isCurrentModeLocked ? (
+              <div className="message success">
+                Day A is locked for this thread after submission. You can review the saved snapshots,
+                then continue in Day B.
+              </div>
+            ) : null}
+
             <form className="form-grid" onSubmit={handleSubmit}>
               <div className="field">
                 <label htmlFor="essay">{copy.essayLabel}</label>
@@ -1068,6 +1097,7 @@ export default function HomePage() {
                   name="essay"
                   placeholder={copy.essayPlaceholder}
                   value={essay}
+                  disabled={isCurrentModeLocked}
                   onChange={(event) => {
                     const nextValue = event.target.value;
                     setEssay(nextValue);
@@ -1084,6 +1114,7 @@ export default function HomePage() {
                     name="phrases"
                     placeholder="due to, in advance, take responsibility for"
                     value={phrasesInput}
+                    disabled={isCurrentModeLocked}
                     onChange={(event) => {
                       const nextValue = event.target.value;
                       setPhrasesInput(nextValue);
@@ -1102,6 +1133,7 @@ export default function HomePage() {
                     name="keywords"
                     placeholder="Optional notes, focus areas, or topic hints"
                     value={keywords}
+                    disabled={isCurrentModeLocked}
                     onChange={(event) => {
                       const nextValue = event.target.value;
                       setKeywords(nextValue);
@@ -1122,7 +1154,11 @@ export default function HomePage() {
               ) : null}
 
               <div className="actions">
-                <button className="submit-button" type="submit" disabled={apiState.loading || !workspaceReady}>
+                <button
+                  className="submit-button"
+                  type="submit"
+                  disabled={apiState.loading || !workspaceReady || isCurrentModeLocked}
+                >
                   {apiState.loading ? "Submitting..." : "Submit to Schliemann"}
                 </button>
               </div>
@@ -1131,8 +1167,16 @@ export default function HomePage() {
 
           <SelectedEntryPanel
             entry={selectedEntry}
+            canLoadDraft={canLoadSelectedDraft}
+            canOpenEditor={canEditSelectedEntry}
             onLoadDraft={handleLoadDraft}
-            onOpenEditor={() => setIsEditorVisible(true)}
+            onOpenEditor={() => {
+              if (selectedEntry?.mode === "day-a") {
+                return;
+              }
+
+              setIsEditorVisible(true);
+            }}
             onExportPdf={handleExportPdf}
           />
         </div>
