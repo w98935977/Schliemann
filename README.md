@@ -48,7 +48,8 @@ npm run dev
 ## Environment variables
 
 - `GEMINI_API_KEY`: required for all server-side Gemini requests
-- `GEMINI_MODEL`: optional, defaults to `gemini-2.5-flash`
+- `GEMINI_MODEL`: optional primary Gemini model, defaults to `gemini-2.5-flash`
+- `GEMINI_FALLBACK_MODELS`: optional comma-separated fallback chain, for example `gemini-2.5-flash-lite,gemini-1.5-flash`
 - `DATABASE_URL`: optional Postgres connection string for shared submitted-thread persistence
 
 ## Vercel setup for cross-device sync
@@ -96,6 +97,6 @@ Failure response:
 
 ## Notes
 
-- This repo uses Google's official `@google/genai` SDK with a single `generateContent` request per submission.
+- This repo uses Google's official `@google/genai` SDK. Each submission tries `GEMINI_MODEL` first, then walks through `GEMINI_FALLBACK_MODELS` when Google returns a rate-limit or quota error.
 - `gemini-2.5-flash` is the default model because it is fast and has a documented free tier on Google's pricing page.
 - Postgres persistence now stores submitted thread snapshots, while in-progress draft typing still remains browser-local until you submit.

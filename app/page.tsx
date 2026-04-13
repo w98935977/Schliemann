@@ -210,54 +210,6 @@ function getDisplayThreadTitle(thread: WorkspaceThread) {
   return thread.title === "Untitled draft" ? formatTimestamp(thread.createdAt) : thread.title;
 }
 
-function renderAssistantOutput(output: string) {
-  const blocks = parseAssistantOutput(output);
-
-  if (blocks.length === 0) {
-    return null;
-  }
-
-  return blocks.map((block, index) => {
-    if (block.type === "divider") {
-      return <hr key={`hr-${index}`} />;
-    }
-
-    if (block.type === "heading") {
-      return (
-        <h3 key={`heading-${index}`} className="response-heading">
-          {block.content}
-        </h3>
-      );
-    }
-
-    if (block.type === "ordered-list") {
-      return (
-        <ol key={`ol-${index}`} className="response-list response-list-numbered">
-          {block.items.map((item, itemIndex) => (
-            <li key={`${item}-${itemIndex}`}>{renderInlineMarkdown(item)}</li>
-          ))}
-        </ol>
-      );
-    }
-
-    if (block.type === "unordered-list") {
-      return (
-        <ul key={`ul-${index}`} className="response-list">
-          {block.items.map((item, itemIndex) => (
-            <li key={`${item}-${itemIndex}`}>{renderInlineMarkdown(item)}</li>
-          ))}
-        </ul>
-      );
-    }
-
-    return (
-      <p key={`p-${index}`} className="response-paragraph">
-        {renderInlineMarkdown(block.content)}
-      </p>
-    );
-  });
-}
-
 function ThreadCardButton({ isActive, isDeletable, onDelete, onSelect, thread }: ThreadCardProps) {
   return (
     <div
