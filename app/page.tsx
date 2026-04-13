@@ -223,7 +223,6 @@ function isModeLocked(thread: WorkspaceThread | null, mode: TrainingMode) {
 
   return thread.entries.some((entry) => entry.mode === "day-a");
 }
-
 function ThreadCardButton({ isActive, isDeletable, onDelete, onSelect, thread }: ThreadCardProps) {
   return (
     <div
