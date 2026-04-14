@@ -76,6 +76,22 @@ function stripInlineMarkdown(text: string) {
   return text.replace(/\*\*([^*]+)\*\*/g, "$1").replace(/\*([^*]+)\*/g, "$1");
 }
 
+function splitDrillAnswer(item: string) {
+  const match = item.match(/^(.*?)(?:\s+)?Answer:\s*(.+)$/i);
+
+  if (!match) {
+    return {
+      prompt: item,
+      answer: ""
+    };
+  }
+
+  return {
+    prompt: match[1].trim(),
+    answer: match[2].trim()
+  };
+}
+
 function parseAssistantOutput(output: string) {
   const normalized = output.replace(/\r\n/g, "\n").trim();
 
@@ -86,6 +102,7 @@ function parseAssistantOutput(output: string) {
   const lines = normalized.split("\n");
   const blocks: AssistantBlock[] = [];
   let index = 0;
+  const unorderedListPattern = /^[-*•]\s+/;
 
   function collectListItems(pattern: RegExp) {
     const items: string[] = [];
@@ -102,7 +119,7 @@ function parseAssistantOutput(output: string) {
           continuation === "---" ||
           continuation.startsWith("## ") ||
           /^\d+\.\s+/.test(continuation) ||
-          /^[-*]\s+/.test(continuation)
+          unorderedListPattern.test(continuation)
         ) {
           break;
         }
@@ -142,8 +159,8 @@ function parseAssistantOutput(output: string) {
       continue;
     }
 
-    if (/^[-*]\s+/.test(line)) {
-      blocks.push({ type: "unordered-list", items: collectListItems(/^[-*]\s+/) });
+    if (unorderedListPattern.test(line)) {
+      blocks.push({ type: "unordered-list", items: collectListItems(unorderedListPattern) });
       continue;
     }
 
@@ -157,7 +174,7 @@ function parseAssistantOutput(output: string) {
         current === "---" ||
         current.startsWith("## ") ||
         /^\d+\.\s+/.test(current) ||
-        /^[-*]\s+/.test(current)
+        unorderedListPattern.test(current)
       ) {
         break;
       }
@@ -238,14 +255,11 @@ function DrillListItem({ item, isDrill }: { item: string; isDrill: boolean }) {
     return <li>{renderInlineMarkdown(item)}</li>;
   }
 
-  const match = item.match(/^(.*?)(?:\s+)?Answer:\s*(.+)$/i);
+  const { prompt, answer } = splitDrillAnswer(item);
 
-  if (!match) {
+  if (!answer) {
     return <li>{renderInlineMarkdown(item)}</li>;
   }
-
-  const prompt = match[1].trim();
-  const answer = match[2].trim();
 
   return (
     <li className="drill-item">
@@ -886,6 +900,7 @@ export default function HomePage() {
       document.setDrawColor(206, 185, 157);
       document.line(margin, cursorY, pageWidth - margin, cursorY);
       cursorY += 24;
+      let activeHeading = "";
 
       for (const block of blocks) {
         if (block.type === "divider") {
@@ -897,6 +912,7 @@ export default function HomePage() {
         }
 
         if (block.type === "heading") {
+          activeHeading = block.content.trim().toLowerCase();
           ensurePageSpace(24);
           document.setFont("Lora", "bold");
           document.setTextColor(127, 57, 23);
@@ -925,8 +941,10 @@ export default function HomePage() {
         const bulletWidth = maxWidth - 18;
         const items = block.items.map((item, itemIndex) =>
           block.type === "ordered-list"
-            ? `${itemIndex + 1}. ${stripInlineMarkdown(item)}`
-            : `• ${stripInlineMarkdown(item)}`
+            ? `${itemIndex + 1}. ${stripInlineMarkdown(
+                activeHeading === "drills" ? splitDrillAnswer(item).prompt : item
+              )}`
+            : `• ${stripInlineMarkdown(activeHeading === "drills" ? splitDrillAnswer(item).prompt : item)}`
         );
 
         document.setFont("Lora", "normal");
