@@ -215,6 +215,7 @@ function isModeLocked(thread: WorkspaceThread | null, mode: TrainingMode) {
 
   return thread.entries.some((entry) => entry.mode === mode);
 }
+
 function ThreadCardButton({ isActive, isDeletable, onDelete, onSelect, thread }: ThreadCardProps) {
   return (
     <div
@@ -516,7 +517,7 @@ export default function HomePage() {
     () => activeThread?.entries.filter((entry) => entry.mode === mode) ?? [],
     [activeThread, mode]
   );
-  const hasSubmittedEntries = (activeThread?.entries.length ?? 0) > 0;
+  const hasSubmittedEntriesForCurrentMode = modeEntries.length > 0;
   const isCurrentModeLocked = useMemo(() => isModeLocked(activeThread, mode), [activeThread, mode]);
 
   useEffect(() => {
@@ -528,14 +529,14 @@ export default function HomePage() {
 
     if (matchingEntries.length === 0) {
       setSelectedEntryId(null);
-      setIsEditorVisible(!hasSubmittedEntries);
+      setIsEditorVisible(true);
       return;
     }
 
     if (!matchingEntries.some((entry) => entry.id === selectedEntryId)) {
       setSelectedEntryId(matchingEntries.at(-1)?.id ?? null);
     }
-  }, [activeThread, mode, selectedEntryId, hasSubmittedEntries]);
+  }, [activeThread, mode, selectedEntryId]);
 
   const copy = modeCopy[mode];
   const phrases = useMemo(() => normalizePhraseInput(phrasesInput), [phrasesInput]);
@@ -581,7 +582,7 @@ export default function HomePage() {
     setActiveThreadId(thread.id);
     setSelectedEntryId(thread.entries.at(-1)?.id ?? null);
     setMode(thread.draft.mode);
-    setIsEditorVisible(thread.entries.length === 0);
+    setIsEditorVisible(!isModeLocked(thread, thread.draft.mode));
     setEssay(thread.draft.essay);
     setPhrasesInput(thread.draft.phrasesInput);
     setKeywords(thread.draft.keywords);
@@ -622,15 +623,17 @@ export default function HomePage() {
     const fallbackThread = remainingThreads[0] ?? createHiddenPlaceholderThread();
     const nextThreads = remainingThreads.length > 0 ? sortThreads(remainingThreads) : [fallbackThread];
 
-      setThreads(nextThreads);
-      setWorkspaceSource("local");
-      setWorkspaceStatusMessage("This thread was removed locally. Shared sync will update only when the deployment has a working DATABASE_URL.");
+    setThreads(nextThreads);
+    setWorkspaceSource("local");
+    setWorkspaceStatusMessage(
+      "This thread was removed locally. Shared sync will update only when the deployment has a working DATABASE_URL."
+    );
 
-      if (activeThreadId === threadId) {
+    if (activeThreadId === threadId) {
       setActiveThreadId(fallbackThread.id);
       setSelectedEntryId(fallbackThread.entries.at(-1)?.id ?? null);
       setMode(fallbackThread.draft.mode);
-      setIsEditorVisible(fallbackThread.entries.length === 0);
+      setIsEditorVisible(!isModeLocked(fallbackThread, fallbackThread.draft.mode));
       setEssay(fallbackThread.draft.essay);
       setPhrasesInput(fallbackThread.draft.phrasesInput);
       setKeywords(fallbackThread.draft.keywords);
@@ -647,7 +650,7 @@ export default function HomePage() {
 
   function handleModeChange(nextMode: TrainingMode) {
     setMode(nextMode);
-    setIsEditorVisible(false);
+    setIsEditorVisible(!isModeLocked(activeThread, nextMode));
     syncDraftToThread({ mode: nextMode });
   }
 
@@ -913,7 +916,7 @@ export default function HomePage() {
     }
   }
 
-function renderEntryTabs() {
+  function renderEntryTabs() {
     if (!modeEntries.length) {
       return null;
     }
@@ -1039,85 +1042,85 @@ function renderEntryTabs() {
             {renderThreadToolbar()}
             {renderEntryTabs()}
 
-            {hasSubmittedEntries ? (
+            {isCurrentModeLocked ? (
               <div className="message success">
-                Submitted snapshots are read-only for this thread. Use the tabs above to switch
-                between saved versions.
+                This {mode === "day-a" ? "Day A" : "Day B"} submission is read-only. Use the tabs
+                above to switch between saved versions.
               </div>
             ) : null}
 
-            {!hasSubmittedEntries ? (
-            <form className="form-grid" onSubmit={handleSubmit}>
-              <div className="field">
-                <label htmlFor="essay">{copy.essayLabel}</label>
-                <textarea
-                  id="essay"
-                  name="essay"
-                  placeholder={copy.essayPlaceholder}
-                  value={essay}
-                  onChange={(event) => {
-                    const nextValue = event.target.value;
-                    setEssay(nextValue);
-                    syncDraftToThread({ essay: nextValue });
-                  }}
-                />
-              </div>
-
-              <div className="field-row">
+            {isEditorVisible && !isCurrentModeLocked ? (
+              <form className="form-grid" onSubmit={handleSubmit}>
                 <div className="field">
-                  <label htmlFor="phrases">Phrases / collocations</label>
+                  <label htmlFor="essay">{copy.essayLabel}</label>
                   <textarea
-                    id="phrases"
-                    name="phrases"
-                    placeholder="due to, in advance, take responsibility for"
-                    value={phrasesInput}
+                    id="essay"
+                    name="essay"
+                    placeholder={copy.essayPlaceholder}
+                    value={essay}
                     onChange={(event) => {
                       const nextValue = event.target.value;
-                      setPhrasesInput(nextValue);
-                      syncDraftToThread({ phrasesInput: nextValue });
+                      setEssay(nextValue);
+                      syncDraftToThread({ essay: nextValue });
                     }}
                   />
-                  <p className="field-help">
-                    {copy.phrasesHelp} Current count: <strong>{phrases.length}</strong>
-                  </p>
                 </div>
 
-                <div className="field">
-                  <label htmlFor="keywords">Keywords / topic</label>
-                  <textarea
-                    id="keywords"
-                    name="keywords"
-                    placeholder="Optional notes, focus areas, or topic hints"
-                    value={keywords}
-                    onChange={(event) => {
-                      const nextValue = event.target.value;
-                      setKeywords(nextValue);
-                      syncDraftToThread({ keywords: nextValue });
-                    }}
-                  />
-                  <p className="field-help">{copy.keywordsHelp}</p>
+                <div className="field-row">
+                  <div className="field">
+                    <label htmlFor="phrases">Phrases / collocations</label>
+                    <textarea
+                      id="phrases"
+                      name="phrases"
+                      placeholder="due to, in advance, take responsibility for"
+                      value={phrasesInput}
+                      onChange={(event) => {
+                        const nextValue = event.target.value;
+                        setPhrasesInput(nextValue);
+                        syncDraftToThread({ phrasesInput: nextValue });
+                      }}
+                    />
+                    <p className="field-help">
+                      {copy.phrasesHelp} Current count: <strong>{phrases.length}</strong>
+                    </p>
+                  </div>
+
+                  <div className="field">
+                    <label htmlFor="keywords">Keywords / topic</label>
+                    <textarea
+                      id="keywords"
+                      name="keywords"
+                      placeholder="Optional notes, focus areas, or topic hints"
+                      value={keywords}
+                      onChange={(event) => {
+                        const nextValue = event.target.value;
+                        setKeywords(nextValue);
+                        syncDraftToThread({ keywords: nextValue });
+                      }}
+                    />
+                    <p className="field-help">{copy.keywordsHelp}</p>
+                  </div>
                 </div>
-              </div>
 
-              {apiState.error ? <div className="message error">{apiState.error}</div> : null}
+                {apiState.error ? <div className="message error">{apiState.error}</div> : null}
 
-              {!apiState.error && !apiState.loading && selectedEntry?.kind === "assistant-feedback" ? (
-                <div className="message success">
-                  Latest assistant feedback is saved in this browser. Pick any thread on the left to
-                  revisit older cycles.
+                {!apiState.error && !apiState.loading && selectedEntry?.kind === "assistant-feedback" ? (
+                  <div className="message success">
+                    Latest assistant feedback is saved in this browser. Pick any thread on the left to
+                    revisit older cycles.
+                  </div>
+                ) : null}
+
+                <div className="actions">
+                  <button
+                    className="submit-button"
+                    type="submit"
+                    disabled={apiState.loading || !workspaceReady || isCurrentModeLocked}
+                  >
+                    {apiState.loading ? "Submitting..." : "Submit to Schliemann"}
+                  </button>
                 </div>
-              ) : null}
-
-              <div className="actions">
-                <button
-                  className="submit-button"
-                  type="submit"
-                  disabled={apiState.loading || !workspaceReady || isCurrentModeLocked}
-                >
-                  {apiState.loading ? "Submitting..." : "Submit to Schliemann"}
-                </button>
-              </div>
-            </form>
+              </form>
             ) : null}
           </section>
 
