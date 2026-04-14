@@ -87,6 +87,36 @@ function parseAssistantOutput(output: string) {
   const blocks: AssistantBlock[] = [];
   let index = 0;
 
+  function collectListItems(pattern: RegExp) {
+    const items: string[] = [];
+
+    while (index < lines.length && pattern.test(lines[index].trim())) {
+      const itemLines = [lines[index].trim().replace(pattern, "")];
+      index += 1;
+
+      while (index < lines.length) {
+        const continuation = lines[index].trim();
+
+        if (
+          !continuation ||
+          continuation === "---" ||
+          continuation.startsWith("## ") ||
+          /^\d+\.\s+/.test(continuation) ||
+          /^[-*]\s+/.test(continuation)
+        ) {
+          break;
+        }
+
+        itemLines.push(continuation);
+        index += 1;
+      }
+
+      items.push(itemLines.join(" "));
+    }
+
+    return items;
+  }
+
   while (index < lines.length) {
     const line = lines[index].trim();
 
@@ -108,26 +138,12 @@ function parseAssistantOutput(output: string) {
     }
 
     if (/^\d+\.\s+/.test(line)) {
-      const items: string[] = [];
-
-      while (index < lines.length && /^\d+\.\s+/.test(lines[index].trim())) {
-        items.push(lines[index].trim().replace(/^\d+\.\s+/, ""));
-        index += 1;
-      }
-
-      blocks.push({ type: "ordered-list", items });
+      blocks.push({ type: "ordered-list", items: collectListItems(/^\d+\.\s+/) });
       continue;
     }
 
     if (/^[-*]\s+/.test(line)) {
-      const items: string[] = [];
-
-      while (index < lines.length && /^[-*]\s+/.test(lines[index].trim())) {
-        items.push(lines[index].trim().replace(/^[-*]\s+/, ""));
-        index += 1;
-      }
-
-      blocks.push({ type: "unordered-list", items });
+      blocks.push({ type: "unordered-list", items: collectListItems(/^[-*]\s+/) });
       continue;
     }
 
