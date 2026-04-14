@@ -85,6 +85,8 @@ DAY A REQUIRED OUTPUT SECTIONS
 3. ## Sentence Bank
 - Provide 5-8 reusable sentences or sentence frames based on the learner's topic and errors.
 - Make them realistic and practical.
+- For each item, show the cue or practice prompt first, then include the model sentence using this exact marker: "Answer:"
+- Example format: "- Polite opinion sentence for this topic Answer: I believe ..."
 
 4. ## Drills
 - Provide short practice drills that directly target the error patterns.

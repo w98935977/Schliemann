@@ -78,7 +78,7 @@ function stripInlineMarkdown(text: string) {
   return text.replace(/\*\*([^*]+)\*\*/g, "$1").replace(/\*([^*]+)\*/g, "$1");
 }
 
-function splitDrillAnswer(item: string) {
+function splitAnswerContent(item: string) {
   const match = item.match(/^(.*?)(?:\s+)?Answer:\s*(.+)$/i);
 
   if (!match) {
@@ -244,19 +244,20 @@ function AssistantOutputView({ output }: { output: string }) {
       );
     }
 
-    if (activeHeading === "sentence bank" && !visibleSections["sentence bank"]) {
-      return null;
-    }
-
     if (block.type === "ordered-list") {
       return (
         <ol key={`ol-${index}`} className="response-list response-list-numbered">
           {block.items.map((item, itemIndex) => (
-            <DrillListItem
+            <AnswerListItem
               key={`${item}-${itemIndex}`}
               item={item}
-              isDrill={activeHeading === "drills"}
-              showAnswer={visibleSections.drills}
+              revealAnswers={
+                activeHeading === "drills"
+                  ? visibleSections.drills
+                  : activeHeading === "sentence bank"
+                    ? visibleSections["sentence bank"]
+                    : false
+              }
             />
           ))}
         </ol>
@@ -267,11 +268,16 @@ function AssistantOutputView({ output }: { output: string }) {
       return (
         <ul key={`ul-${index}`} className="response-list">
           {block.items.map((item, itemIndex) => (
-            <DrillListItem
+            <AnswerListItem
               key={`${item}-${itemIndex}`}
               item={item}
-              isDrill={activeHeading === "drills"}
-              showAnswer={visibleSections.drills}
+              revealAnswers={
+                activeHeading === "drills"
+                  ? visibleSections.drills
+                  : activeHeading === "sentence bank"
+                    ? visibleSections["sentence bank"]
+                    : false
+              }
             />
           ))}
         </ul>
@@ -286,20 +292,14 @@ function AssistantOutputView({ output }: { output: string }) {
   });
 }
 
-function DrillListItem({
+function AnswerListItem({
   item,
-  isDrill,
-  showAnswer
+  revealAnswers
 }: {
   item: string;
-  isDrill: boolean;
-  showAnswer: boolean;
+  revealAnswers: boolean;
 }) {
-  if (!isDrill) {
-    return <li>{renderInlineMarkdown(item)}</li>;
-  }
-
-  const { prompt, answer } = splitDrillAnswer(item);
+  const { prompt, answer } = splitAnswerContent(item);
 
   if (!answer) {
     return <li>{renderInlineMarkdown(item)}</li>;
@@ -308,7 +308,7 @@ function DrillListItem({
   return (
     <li className="drill-item">
       <div>{renderInlineMarkdown(prompt)}</div>
-      {showAnswer ? <div className="drill-answer">{renderInlineMarkdown(answer)}</div> : null}
+      {revealAnswers ? <div className="drill-answer">{renderInlineMarkdown(answer)}</div> : null}
     </li>
   );
 }
@@ -978,9 +978,15 @@ export default function HomePage() {
         const items = block.items.map((item, itemIndex) =>
           block.type === "ordered-list"
             ? `${itemIndex + 1}. ${stripInlineMarkdown(
-                activeHeading === "drills" ? splitDrillAnswer(item).prompt : item
+                activeHeading === "drills" || activeHeading === "sentence bank"
+                  ? splitAnswerContent(item).prompt
+                  : item
               )}`
-            : `• ${stripInlineMarkdown(activeHeading === "drills" ? splitDrillAnswer(item).prompt : item)}`
+            : `• ${stripInlineMarkdown(
+                activeHeading === "drills" || activeHeading === "sentence bank"
+                  ? splitAnswerContent(item).prompt
+                  : item
+              )}`
         );
 
         document.setFont("Lora", "normal");
