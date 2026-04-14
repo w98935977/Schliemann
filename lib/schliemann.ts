@@ -3,8 +3,6 @@ export type TrainingMode = "day-a" | "day-b";
 export type ReviewPayload = {
   mode: TrainingMode;
   essay: string;
-  phrases: string[];
-  keywords?: string;
 };
 
 export const modeCopy: Record<
@@ -14,51 +12,25 @@ export const modeCopy: Record<
     subtitle: string;
     essayLabel: string;
     essayPlaceholder: string;
-    phrasesHelp: string;
-    keywordsHelp: string;
   }
 > = {
   "day-a": {
     title: "Day A: Essay v1 to Teaching Upgrade",
     subtitle:
-      "Paste a fresh 200-300 word essay and the target phrases you want to practice. The assistant returns a polished read-aloud version plus correction drills.",
+      "Paste a fresh 200-300 word essay. The assistant returns a polished read-aloud version plus correction drills.",
     essayLabel: "Essay v1",
-    essayPlaceholder:
-      "Write your English essay here. A tired-day version is fine too: 120-150 words also works for the cycle.",
-    phrasesHelp:
-      "Recommended: 5 phrases or collocations, separated by commas or new lines. Example: due to, in advance, take responsibility for",
-    keywordsHelp:
-      "Optional topic cues or keywords. Example: hybrid work, time management, TOEIC-style workplace email"
+    essayPlaceholder: "Write your English essay here. A tired-day version is fine too: 120-150 words also works for the cycle."
   },
   "day-b": {
     title: "Day B: Rewrite v3 to Habit Refinement",
     subtitle:
       "Paste your rewrite based on yesterday's feedback. The assistant focuses on progress, remaining habits, and more natural phrasing.",
     essayLabel: "Rewrite v3",
-    essayPlaceholder:
-      "Paste your Day B rewrite here. You can also include your short speaking version in the same text if you want feedback on both.",
-    phrasesHelp:
-      "Optional reference phrases, sentence-bank picks, or expressions you tried to reuse. Separate with commas or new lines.",
-    keywordsHelp:
-      "Optional notes such as focus areas, topics, or what you were trying to improve."
+    essayPlaceholder: "Paste your Day B rewrite here. You can also include your short speaking version in the same text if you want feedback on both."
   }
 };
 
-export function normalizePhraseInput(input: string): string[] {
-  return input
-    .split(/\r?\n|,/)
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
-
 export function buildUserPrompt(payload: ReviewPayload): string {
-  const phraseBlock =
-    payload.phrases.length > 0
-      ? payload.phrases.map((phrase, index) => `${index + 1}. ${phrase}`).join("\n")
-      : "No phrases supplied.";
-
-  const keywordBlock = payload.keywords?.trim() ? payload.keywords.trim() : "None supplied.";
-
   if (payload.mode === "day-a") {
     return [
       "Mode: Day A",
@@ -66,12 +38,6 @@ export function buildUserPrompt(payload: ReviewPayload): string {
       "",
       "Student essay v1:",
       payload.essay.trim(),
-      "",
-      "Target phrases / collocations:",
-      phraseBlock,
-      "",
-      "Topic / keywords:",
-      keywordBlock,
       "",
       "Please produce the Day A output in the required sections."
     ].join("\n");
@@ -83,12 +49,6 @@ export function buildUserPrompt(payload: ReviewPayload): string {
     "",
     "Student rewrite v3:",
     payload.essay.trim(),
-    "",
-    "Reference phrases / sentence bank picks:",
-    phraseBlock,
-    "",
-    "Focus notes / keywords:",
-    keywordBlock,
     "",
     "Please produce the Day B output in the required sections."
   ].join("\n");
@@ -129,6 +89,8 @@ DAY A REQUIRED OUTPUT SECTIONS
 4. ## Drills
 - Provide short practice drills that directly target the error patterns.
 - Prefer rewrite drills, fill-in prompts, or contrast pairs.
+- For each drill, include a short reference answer in the same bullet using this exact marker: "Answer:"
+- Example format: "- Rewrite this sentence naturally: ... Answer: ..."
 
 DAY B PURPOSE
 - Input is Rewrite v3.
@@ -156,7 +118,6 @@ Global formatting rules:
 - Use normal markdown lists and paragraphs.
 - If you need blanks in drills, use underscores like ________, never backslashes.
 - If the input is short or incomplete, still help the learner. Briefly note what is missing, then produce the best possible teaching response.
-- If phrases are supplied, try to incorporate or comment on them naturally.
 `.trim();
 
 export const defaultGeminiModel = "gemini-2.5-flash";

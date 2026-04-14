@@ -15,8 +15,6 @@ export type WorkspaceEntry = {
 export type ThreadDraft = {
   mode: TrainingMode;
   essay: string;
-  phrasesInput: string;
-  keywords: string;
   lastSavedAt: string;
 };
 
@@ -66,8 +64,6 @@ export function createEmptyThread(options?: { isPlaceholder?: boolean }): Worksp
     draft: {
       mode: "day-a",
       essay: "",
-      phrasesInput: "",
-      keywords: "",
       lastSavedAt: now
     }
   };
@@ -105,7 +101,14 @@ export function getStageFromMode(mode: TrainingMode, kind: WorkspaceEntryKind) {
 export function getThreadPreview(thread: WorkspaceThread) {
   const latestEntry = thread.entries[thread.entries.length - 1];
   const sourceText = latestEntry?.content || thread.draft.essay || "No writing yet.";
-  const normalized = sourceText.replace(/\s+/g, " ").trim();
+  const normalized = sourceText
+    .replace(/^##\s+/gm, "")
+    .replace(/^[-*]\s+/gm, "")
+    .replace(/^\d+\.\s+/gm, "")
+    .replace(/\*\*([^*]+)\*\*/g, "$1")
+    .replace(/\*([^*]+)\*/g, "$1")
+    .replace(/\s+/g, " ")
+    .trim();
 
   if (!normalized) {
     return "No writing yet.";

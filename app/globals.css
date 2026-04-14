@@ -629,6 +629,34 @@ button {
   margin-top: 6px;
 }
 
+.drill-item {
+  display: grid;
+  gap: 8px;
+}
+
+.drill-answer-button {
+  width: fit-content;
+  border: 1px solid rgba(96, 72, 44, 0.14);
+  background: rgba(255, 248, 239, 0.96);
+  color: var(--brand-dark);
+  border-radius: 999px;
+  padding: 7px 12px;
+  font: inherit;
+  cursor: pointer;
+  transition: 160ms ease;
+}
+
+.drill-answer-button:hover {
+  background: rgba(174, 91, 47, 0.08);
+  border-color: rgba(174, 91, 47, 0.28);
+}
+
+.drill-answer {
+  border-left: 3px solid rgba(174, 91, 47, 0.28);
+  padding-left: 12px;
+  color: var(--brand-dark);
+}
+
 .student-entry-card {
   display: grid;
   gap: 14px;

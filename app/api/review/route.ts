@@ -19,9 +19,7 @@ export const dynamic = "force-dynamic";
 
 const requestSchema = z.object({
   mode: z.enum(["day-a", "day-b"]),
-  essay: z.string().trim().min(1, "Essay is required."),
-  phrases: z.array(z.string().trim()).default([]),
-  keywords: z.string().trim().optional().default("")
+  essay: z.string().trim().min(1, "Essay is required.")
 });
 
 function summarizeMode(mode: TrainingMode) {

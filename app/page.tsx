@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, FormEvent, ReactNode, useEffect, useMemo, useState } from "react";
-import { modeCopy, normalizePhraseInput, type TrainingMode } from "@/lib/schliemann";
+import { modeCopy, type TrainingMode } from "@/lib/schliemann";
 import { loraFontBase64 } from "@/lib/pdf-fonts";
 import {
   createEmptyThread,
@@ -163,12 +163,15 @@ function renderAssistantOutput(output: string) {
     return null;
   }
 
+  let activeHeading = "";
+
   return blocks.map((block, index) => {
     if (block.type === "divider") {
       return <hr key={`hr-${index}`} />;
     }
 
     if (block.type === "heading") {
+      activeHeading = block.content.trim().toLowerCase();
       return (
         <h3 key={`heading-${index}`} className="response-heading">
           {block.content}
@@ -180,7 +183,11 @@ function renderAssistantOutput(output: string) {
       return (
         <ol key={`ol-${index}`} className="response-list response-list-numbered">
           {block.items.map((item, itemIndex) => (
-            <li key={`${item}-${itemIndex}`}>{renderInlineMarkdown(item)}</li>
+            <DrillListItem
+              key={`${item}-${itemIndex}`}
+              item={item}
+              isDrill={activeHeading === "drills"}
+            />
           ))}
         </ol>
       );
@@ -190,7 +197,11 @@ function renderAssistantOutput(output: string) {
       return (
         <ul key={`ul-${index}`} className="response-list">
           {block.items.map((item, itemIndex) => (
-            <li key={`${item}-${itemIndex}`}>{renderInlineMarkdown(item)}</li>
+            <DrillListItem
+              key={`${item}-${itemIndex}`}
+              item={item}
+              isDrill={activeHeading === "drills"}
+            />
           ))}
         </ul>
       );
@@ -202,6 +213,38 @@ function renderAssistantOutput(output: string) {
       </p>
     );
   });
+}
+
+function DrillListItem({ item, isDrill }: { item: string; isDrill: boolean }) {
+  const [isAnswerVisible, setIsAnswerVisible] = useState(false);
+
+  if (!isDrill) {
+    return <li>{renderInlineMarkdown(item)}</li>;
+  }
+
+  const match = item.match(/^(.*?)(?:\s+)?Answer:\s*(.+)$/i);
+
+  if (!match) {
+    return <li>{renderInlineMarkdown(item)}</li>;
+  }
+
+  const prompt = match[1].trim();
+  const answer = match[2].trim();
+
+  return (
+    <li className="drill-item">
+      <div>{renderInlineMarkdown(prompt)}</div>
+      <button
+        className="drill-answer-button"
+        type="button"
+        aria-expanded={isAnswerVisible}
+        onClick={() => setIsAnswerVisible((currentValue) => !currentValue)}
+      >
+        {isAnswerVisible ? "Hide answer" : "Show answer"}
+      </button>
+      {isAnswerVisible ? <div className="drill-answer">{renderInlineMarkdown(answer)}</div> : null}
+    </li>
+  );
 }
 
 function getDisplayThreadTitle(thread: WorkspaceThread) {
@@ -454,8 +497,6 @@ export default function HomePage() {
   const [mode, setMode] = useState<TrainingMode>("day-a");
   const [isEditorVisible, setIsEditorVisible] = useState(true);
   const [essay, setEssay] = useState("");
-  const [phrasesInput, setPhrasesInput] = useState("");
-  const [keywords, setKeywords] = useState("");
   const [apiState, setApiState] = useState<ApiState>(initialApiState);
 
   useEffect(() => {
@@ -484,8 +525,6 @@ export default function HomePage() {
       setMode(initialThread?.draft.mode ?? "day-a");
       setIsEditorVisible(Boolean(initialThread?.draft.essay) || (initialThread?.entries.length ?? 0) === 0);
       setEssay(initialThread?.draft.essay ?? "");
-      setPhrasesInput(initialThread?.draft.phrasesInput ?? "");
-      setKeywords(initialThread?.draft.keywords ?? "");
       setWorkspaceReady(true);
     }
 
@@ -539,7 +578,6 @@ export default function HomePage() {
   }, [activeThread, mode, selectedEntryId]);
 
   const copy = modeCopy[mode];
-  const phrases = useMemo(() => normalizePhraseInput(phrasesInput), [phrasesInput]);
   const savedSnapshotCount = activeThread
     ? `${activeThread.entries.length} saved snapshots`
     : "0 saved snapshots";
@@ -584,8 +622,6 @@ export default function HomePage() {
     setMode(thread.draft.mode);
     setIsEditorVisible(!isModeLocked(thread, thread.draft.mode));
     setEssay(thread.draft.essay);
-    setPhrasesInput(thread.draft.phrasesInput);
-    setKeywords(thread.draft.keywords);
     setApiState(initialApiState);
   }
 
@@ -599,8 +635,6 @@ export default function HomePage() {
     setMode(nextThread.draft.mode);
     setIsEditorVisible(true);
     setEssay("");
-    setPhrasesInput("");
-    setKeywords("");
     setApiState(initialApiState);
   }
 
@@ -635,8 +669,6 @@ export default function HomePage() {
       setMode(fallbackThread.draft.mode);
       setIsEditorVisible(!isModeLocked(fallbackThread, fallbackThread.draft.mode));
       setEssay(fallbackThread.draft.essay);
-      setPhrasesInput(fallbackThread.draft.phrasesInput);
-      setKeywords(fallbackThread.draft.keywords);
       setApiState(initialApiState);
     }
 
@@ -677,8 +709,6 @@ export default function HomePage() {
       nextThread.draft = {
         mode,
         essay,
-        phrasesInput,
-        keywords,
         lastSavedAt: new Date().toISOString()
       };
       setThreads((currentThreads) => sortThreads([nextThread, ...currentThreads]));
@@ -698,9 +728,7 @@ export default function HomePage() {
         },
         body: JSON.stringify({
           mode,
-          essay: trimmedEssay,
-          phrases,
-          keywords
+          essay: trimmedEssay
         })
       });
 
@@ -747,8 +775,6 @@ export default function HomePage() {
         draft: {
           mode: mode === "day-a" ? "day-b" : mode,
           essay: "",
-          phrasesInput,
-          keywords,
           lastSavedAt: now
         }
       };
@@ -1063,44 +1089,8 @@ export default function HomePage() {
                       setEssay(nextValue);
                       syncDraftToThread({ essay: nextValue });
                     }}
-                  />
-                </div>
-
-                <div className="field-row">
-                  <div className="field">
-                    <label htmlFor="phrases">Phrases / collocations</label>
-                    <textarea
-                      id="phrases"
-                      name="phrases"
-                      placeholder="due to, in advance, take responsibility for"
-                      value={phrasesInput}
-                      onChange={(event) => {
-                        const nextValue = event.target.value;
-                        setPhrasesInput(nextValue);
-                        syncDraftToThread({ phrasesInput: nextValue });
-                      }}
-                    />
-                    <p className="field-help">
-                      {copy.phrasesHelp} Current count: <strong>{phrases.length}</strong>
-                    </p>
-                  </div>
-
-                  <div className="field">
-                    <label htmlFor="keywords">Keywords / topic</label>
-                    <textarea
-                      id="keywords"
-                      name="keywords"
-                      placeholder="Optional notes, focus areas, or topic hints"
-                      value={keywords}
-                      onChange={(event) => {
-                        const nextValue = event.target.value;
-                        setKeywords(nextValue);
-                        syncDraftToThread({ keywords: nextValue });
-                      }}
-                    />
-                    <p className="field-help">{copy.keywordsHelp}</p>
-                  </div>
-                </div>
+                />
+              </div>
 
                 {apiState.error ? <div className="message error">{apiState.error}</div> : null}
 
