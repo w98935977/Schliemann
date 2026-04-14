@@ -605,6 +605,13 @@ button {
   margin: 8px 0;
 }
 
+.response-heading-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
 .response-heading {
   margin: 10px 0 0;
   font-size: 1rem;
@@ -634,7 +641,7 @@ button {
   gap: 8px;
 }
 
-.drill-answer-button {
+.section-answer-button {
   width: fit-content;
   border: 1px solid rgba(96, 72, 44, 0.14);
   background: rgba(255, 248, 239, 0.96);
@@ -644,9 +651,10 @@ button {
   font: inherit;
   cursor: pointer;
   transition: 160ms ease;
+  white-space: nowrap;
 }
 
-.drill-answer-button:hover {
+.section-answer-button:hover {
   background: rgba(174, 91, 47, 0.08);
   border-color: rgba(174, 91, 47, 0.28);
 }

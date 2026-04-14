@@ -32,6 +32,8 @@ type AssistantBlock =
   | { type: "paragraph"; content: string }
   | { type: "divider" };
 
+type RevealableSection = "sentence bank" | "drills";
+
 type ThreadCardProps = {
   isActive: boolean;
   isDeletable: boolean;
@@ -190,13 +192,28 @@ function parseAssistantOutput(output: string) {
 }
 
 function renderAssistantOutput(output: string) {
+  return <AssistantOutputView output={output} />;
+}
+
+function AssistantOutputView({ output }: { output: string }) {
   const blocks = parseAssistantOutput(output);
+  const [visibleSections, setVisibleSections] = useState<Record<RevealableSection, boolean>>({
+    "sentence bank": false,
+    drills: false
+  });
 
   if (blocks.length === 0) {
     return null;
   }
 
   let activeHeading = "";
+
+  function toggleSection(section: RevealableSection) {
+    setVisibleSections((currentValue) => ({
+      ...currentValue,
+      [section]: !currentValue[section]
+    }));
+  }
 
   return blocks.map((block, index) => {
     if (block.type === "divider") {
@@ -205,11 +222,30 @@ function renderAssistantOutput(output: string) {
 
     if (block.type === "heading") {
       activeHeading = block.content.trim().toLowerCase();
+      const revealableSection =
+        activeHeading === "sentence bank" || activeHeading === "drills"
+          ? (activeHeading as RevealableSection)
+          : null;
+
       return (
-        <h3 key={`heading-${index}`} className="response-heading">
-          {block.content}
-        </h3>
+        <div key={`heading-${index}`} className="response-heading-row">
+          <h3 className="response-heading">{block.content}</h3>
+          {revealableSection ? (
+            <button
+              className="section-answer-button"
+              type="button"
+              aria-expanded={visibleSections[revealableSection]}
+              onClick={() => toggleSection(revealableSection)}
+            >
+              {visibleSections[revealableSection] ? "Hide answers" : "Show answers"}
+            </button>
+          ) : null}
+        </div>
       );
+    }
+
+    if (activeHeading === "sentence bank" && !visibleSections["sentence bank"]) {
+      return null;
     }
 
     if (block.type === "ordered-list") {
@@ -220,6 +256,7 @@ function renderAssistantOutput(output: string) {
               key={`${item}-${itemIndex}`}
               item={item}
               isDrill={activeHeading === "drills"}
+              showAnswer={visibleSections.drills}
             />
           ))}
         </ol>
@@ -234,6 +271,7 @@ function renderAssistantOutput(output: string) {
               key={`${item}-${itemIndex}`}
               item={item}
               isDrill={activeHeading === "drills"}
+              showAnswer={visibleSections.drills}
             />
           ))}
         </ul>
@@ -248,9 +286,15 @@ function renderAssistantOutput(output: string) {
   });
 }
 
-function DrillListItem({ item, isDrill }: { item: string; isDrill: boolean }) {
-  const [isAnswerVisible, setIsAnswerVisible] = useState(false);
-
+function DrillListItem({
+  item,
+  isDrill,
+  showAnswer
+}: {
+  item: string;
+  isDrill: boolean;
+  showAnswer: boolean;
+}) {
   if (!isDrill) {
     return <li>{renderInlineMarkdown(item)}</li>;
   }
@@ -264,15 +308,7 @@ function DrillListItem({ item, isDrill }: { item: string; isDrill: boolean }) {
   return (
     <li className="drill-item">
       <div>{renderInlineMarkdown(prompt)}</div>
-      <button
-        className="drill-answer-button"
-        type="button"
-        aria-expanded={isAnswerVisible}
-        onClick={() => setIsAnswerVisible((currentValue) => !currentValue)}
-      >
-        {isAnswerVisible ? "Hide answer" : "Show answer"}
-      </button>
-      {isAnswerVisible ? <div className="drill-answer">{renderInlineMarkdown(answer)}</div> : null}
+      {showAnswer ? <div className="drill-answer">{renderInlineMarkdown(answer)}</div> : null}
     </li>
   );
 }
