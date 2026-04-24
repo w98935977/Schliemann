@@ -1,3 +1,4 @@
+import { z } from "zod";
 import type { TrainingMode } from "@/lib/schliemann";
 
 export type WorkspaceEntryKind = "student-draft" | "assistant-feedback";
@@ -30,6 +31,43 @@ export type WorkspaceThread = {
 };
 
 export const workspaceStorageKey = "schliemann.workspace.v1";
+
+export const workspaceEntrySchema = z.object({
+  id: z.string().min(1),
+  threadId: z.string().min(1),
+  kind: z.enum(["student-draft", "assistant-feedback"]),
+  label: z.string().min(1),
+  mode: z.enum(["day-a", "day-b"]),
+  content: z.string(),
+  createdAt: z.string().datetime()
+});
+
+export const threadDraftSchema = z
+  .object({
+    mode: z.enum(["day-a", "day-b"]),
+    essay: z.string(),
+    lastSavedAt: z.string().datetime(),
+    phrasesInput: z.string().optional(),
+    keywords: z.string().optional()
+  })
+  .transform(({ mode, essay, lastSavedAt }) => ({
+    mode,
+    essay,
+    lastSavedAt
+  }));
+
+export const workspaceThreadSchema: z.ZodType<WorkspaceThread> = z.object({
+  id: z.string().min(1),
+  title: z.string().min(1),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+  currentStage: z.string().min(1),
+  isPlaceholder: z.boolean().optional(),
+  entries: z.array(workspaceEntrySchema),
+  draft: threadDraftSchema
+});
+
+export const workspaceThreadsSchema = z.array(workspaceThreadSchema);
 
 export function createId() {
   return typeof crypto !== "undefined" && "randomUUID" in crypto
@@ -121,6 +159,11 @@ export function sortThreads(threads: WorkspaceThread[]) {
   return [...threads].sort((left, right) => {
     return new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime();
   });
+}
+
+export function parseWorkspaceThreads(value: unknown) {
+  const parsed = workspaceThreadsSchema.safeParse(value);
+  return parsed.success ? sortThreads(parsed.data) : [];
 }
 
 export function formatTimestamp(value: string) {

@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { createId, sortThreads, type WorkspaceThread } from "@/lib/workspace";
+import {
+  createId,
+  sortThreads,
+  workspaceThreadSchema,
+  type WorkspaceThread
+} from "@/lib/workspace";
 import {
   isDatabaseConfigured,
   listStoredThreads,
@@ -11,37 +16,8 @@ import {
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const entrySchema = z.object({
-  id: z.string().min(1),
-  threadId: z.string().min(1),
-  kind: z.enum(["student-draft", "assistant-feedback"]),
-  label: z.string().min(1),
-  mode: z.enum(["day-a", "day-b"]),
-  content: z.string(),
-  createdAt: z.string().datetime()
-});
-
-const draftSchema = z.object({
-  mode: z.enum(["day-a", "day-b"]),
-  essay: z.string(),
-  phrasesInput: z.string().optional(),
-  keywords: z.string().optional(),
-  lastSavedAt: z.string().datetime()
-});
-
-const threadSchema: z.ZodType<WorkspaceThread> = z.object({
-  id: z.string().min(1),
-  title: z.string().min(1),
-  createdAt: z.string().datetime(),
-  updatedAt: z.string().datetime(),
-  currentStage: z.string().min(1),
-  isPlaceholder: z.boolean().optional(),
-  entries: z.array(entrySchema),
-  draft: draftSchema
-});
-
 const requestSchema = z.object({
-  thread: threadSchema
+  thread: workspaceThreadSchema
 });
 
 export async function GET() {

@@ -6,11 +6,12 @@ Single-page Next.js MVP for your Schliemann English-writing workflow. The app le
 
 - Left-side thread list so each writing cycle feels closer to a chat workspace
 - Collapsible sidebar that starts closed, similar to GPT-style navigation
-- Browser-local autosave for the active draft, phrases, and keywords in each thread
+- Browser-local autosave for the active draft in each thread
 - Version timeline per thread so you can revisit saved student drafts and assistant feedback
 - Delete-thread controls for removing browser-local conversation history
 - `Day A` mode for Essay v1 -> `v2`, `Error Patterns`, `Sentence Bank`, `Drills`
 - `Day B` mode for Rewrite v3 -> `Progress`, `Habits To Keep Fixing`, `More Natural Version`
+- `Sentence Bank` and `Drills` answers can be revealed section-by-section in the saved feedback view
 - Server-side Gemini call so the API key never reaches the browser
 
 ## Current persistence model
@@ -71,9 +72,7 @@ If the toolbar still says **Local only**, the deployment is not seeing a valid `
 ```json
 {
   "mode": "day-a",
-  "essay": "Your writing here",
-  "phrases": ["due to", "in advance"],
-  "keywords": "hybrid work"
+  "essay": "Your writing here"
 }
 ```
 
@@ -100,3 +99,4 @@ Failure response:
 - This repo uses Google's official `@google/genai` SDK. Each submission tries `GEMINI_MODEL` first, then walks through `GEMINI_FALLBACK_MODELS` when Google returns a rate-limit or quota error.
 - `gemini-2.5-flash` is the default model because it is fast and has a documented free tier on Google's pricing page.
 - Postgres persistence now stores submitted thread snapshots, while in-progress draft typing still remains browser-local until you submit.
+- Stored thread payloads are schema-validated on load so older local data can be migrated safely when the draft model changes.

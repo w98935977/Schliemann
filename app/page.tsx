@@ -11,6 +11,7 @@ import {
   getStageFromMode,
   getStudentEntryLabel,
   getThreadPreview,
+  parseWorkspaceThreads,
   sortThreads,
   summarizeThreadTitle,
   workspaceStorageKey,
@@ -440,8 +441,7 @@ function parseStoredThreads() {
   }
 
   try {
-    const parsed = JSON.parse(storedValue) as WorkspaceThread[];
-    return Array.isArray(parsed) ? sortThreads(parsed) : [];
+    return parseWorkspaceThreads(JSON.parse(storedValue));
   } catch {
     return [] as WorkspaceThread[];
   }
