@@ -24,8 +24,8 @@ const entrySchema = z.object({
 const draftSchema = z.object({
   mode: z.enum(["day-a", "day-b"]),
   essay: z.string(),
-  phrasesInput: z.string(),
-  keywords: z.string(),
+  phrasesInput: z.string().optional(),
+  keywords: z.string().optional(),
   lastSavedAt: z.string().datetime()
 });
 
