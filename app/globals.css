@@ -129,6 +129,7 @@ button {
   display: grid;
   gap: 14px;
   align-content: start;
+  pointer-events: none;
 }
 
 .sidebar-toggle {
@@ -147,6 +148,7 @@ button {
   gap: 10px;
   cursor: pointer;
   box-shadow: 0 10px 24px rgba(72, 44, 19, 0.08);
+  pointer-events: auto;
 }
 
 .sidebar-toggle[data-open="false"] {
